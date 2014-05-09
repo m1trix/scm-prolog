@@ -1,4 +1,3 @@
-PROJECT:
-========
+#PROJECT:
 
 A Clojure library, that imitates the logic of Prolog programming language.
