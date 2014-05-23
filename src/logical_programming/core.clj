@@ -1,7 +1,9 @@
+(use '[clojure.core.match :only (match)])
+
 (ns logical-programming.core
   (:gen-class))
 
 (defn -main
-  "I don't do a whole lot ... yet."
+  "Entry Point."
   [& args]
   (println "Hello, World!"))
