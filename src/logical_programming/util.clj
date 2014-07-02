@@ -13,5 +13,4 @@
 (defn print-err
   "Prints the error message in a specific text format"
   [err-msg]
-  (println (str "\n\u001b[31m" err-msg "\u001b[0m\n")))
-
+  (println (str "\u001b[31m" err-msg "\u001b[0m")))
