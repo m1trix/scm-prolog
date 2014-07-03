@@ -192,7 +192,11 @@
   (if (keyword? a)
     (if (a-z? a)
       (-->atom a)
-      (-->variable a))
+      (if (A-Z? a)
+        (-->variable a)
+        (if (same? a :_)
+          (-->variable a)
+          (throw "Illigal name."))))
     (if (number? a)
       (-->number a)
       (if (vector? a)
@@ -208,6 +212,10 @@
 ;;  The head is the structure of the funct - name and arguments list.
 ;;  The body is a list of structures.
 ;;
-(defrecord Funct [head body])
+(defrecord Functor [head body])
 
+(defn -->functor [title args body]
+  (let [struct (-->structure title args)
+        new-body (mapv -->structure body)]
+    (Functor. struct body)))
 
