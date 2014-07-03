@@ -2,9 +2,6 @@
   (:use [logical-programming.util]
         [logical-programming.terms]))
 
-
-(declare unify)
-
 ;;
 ;; This is the source of all knowledge.
 ;; Whatever gets loaded to the program goes here.

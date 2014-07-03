@@ -3,7 +3,7 @@
 ;; ==========================================================================
 
 (ns logical-programming.terms
-  (:use [logical-programming.util]))
+  (:require [logical-programming.util :refer :all]))
 
 
 (declare unify)
@@ -38,7 +38,7 @@
   (= (type x) logical_programming.terms.PL-Number))
 
 (defn unify-numbers
-  ""
+  "Two numbers unify if they have the same value."
   [x y]
   (if (same? (:value x) (:value y))
     x
@@ -69,7 +69,7 @@
     (if (different? (arity x) (arity y))
       false
       (let [uargs (unify-args (:args x)
-                                (:args y))]
+                              (:args y))]
         (if (false? uargs)
           false
           (PL-Structure. (:name x) uargs))))))
@@ -88,10 +88,10 @@
 (defn pl-variable? [x]
   (= (type x) logical_programming.terms.PL-Variable))
 
-(defn unify-variables
-  "Two variables unify by agreeing to "share" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
-  [x y]
-  (let [new-x (PL-Variable. (:name x) nil (assoc (:binds x) (:name y)))
-        new-y (PL-Variable. (:name y) nil (assoc (:binds y) (:name x)))]
-    [new-x new-y]))
+;; (defn unify-variables
+;;   "Two variables unify by agreeing to "share" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
+;;   [x y]
+;;   (let [new-x (PL-Variable. (:name x) nil (conj (:binds x) (:name y)))
+;;         new-y (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))]
+;;     [new-x new-y]))
 
