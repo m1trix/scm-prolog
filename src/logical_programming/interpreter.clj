@@ -1,6 +1,9 @@
 (ns logical-programming.interpreter
-  (:use [logical-programming.util]))
+  (:use [logical-programming.util]
+        [logical-programming.terms]))
 
+
+(declare unify)
 
 ;;
 ;; This is the source of all knowledge.
@@ -14,24 +17,22 @@
 ;;            :body [[:member [:A :X]]]}]}
 ;;
 
-(def knowledge-base (atom {:member [{:args [:A [:A :_]]
+(def knowledge-base (atom {:member [{:args [:A {:head [:A] :tail :_}]
                            :body []}
-                          {:args [:A [:_ :X]]
+                          {:args [:A {:head [:A] :tail :X}]
                            :body [{:name :member
                                    :args [:A :X]}]}]}))
 
 
-(defmacro interpret [query]
-  )
+(defn interpret[query])
 
 
-
-(defmacro ?-
+(defn ?-
   "A function that is used by the UI to interpret user queries."
   [query]
   (if (empty? query)
     (print-err "Empty query!")
-    `(interpret ~query)))
+    (interpret query)))
 
 
 

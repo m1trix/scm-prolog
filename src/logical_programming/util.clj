@@ -8,7 +8,11 @@
 (defn different? [X Y]
   (not (= X Y)))
 
+(defn same? [X Y]
+  (= X Y))
 
+(defn arity [A]
+  (count (:args A)))
 
 (defn print-err
   "Prints the error message in a specific text format"
