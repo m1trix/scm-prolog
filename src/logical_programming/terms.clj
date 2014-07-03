@@ -112,3 +112,17 @@
   (if (= (:word x) (:word y))
     x
     false))
+
+
+
+;; ============================================================================
+;;  Prolog List: [A, B, C]. [A | X]. [_ | 3]. [1 | _].
+;;  List of Prolog Temrs - the elementss can be anything.
+;;  They have a head [1, 2 and a tail | X], where the head
+;;    contains elemens and the tail is another list (could be and empty one).
+;;
+(defrecord PL-List [head tail])
+
+(defn pl-list? [x]
+  (= (type x) logical_programming.terms.PL-List))
+
