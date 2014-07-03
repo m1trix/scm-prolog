@@ -88,10 +88,12 @@
 (defn pl-variable? [x]
   (= (type x) logical_programming.terms.PL-Variable))
 
-;; (defn unify-variables
-;;   "Two variables unify by agreeing to "share" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
-;;   [x y]
-;;   (let [new-x (PL-Variable. (:name x) nil (conj (:binds x) (:name y)))
-;;         new-y (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))]
-;;     [new-x new-y]))
+(defn unify-variables
+  "Two variables unify by agreeing to \"share\" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
+  [x y]
+  (let [new-x (PL-Variable. (:name x) nil (conj (:binds x) (:name y)))
+        new-y (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))]
+    [new-x new-y]))
+
+
 
