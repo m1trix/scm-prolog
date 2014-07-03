@@ -14,6 +14,15 @@
 (defn arity [A]
   (count (:args A)))
 
+
+(defn a-z? [key]
+  (let [s (->
+           (str key)
+           (vec)
+           (second)
+           (str))]
+    (same? s (clojure.string/lower-case s))))
+
 (defn print-err
   "Prints the error message in a specific text format"
   [err-msg]

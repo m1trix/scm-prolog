@@ -7,18 +7,20 @@
 ;; Whatever gets loaded to the program goes here.
 ;; The interpreter knows only the things that are included in the knowledge-base.
 ;;
-;; Example knowledge-base:
-;; {:member [{:args [:A [:A :_]]
-;;            :body []}
-;;           {:args [:A [:_ :X]]
-;;            :body [[:member [:A :X]]]}]}
-;;
+(def knowledge-base (atom { }))
 
-(def knowledge-base (atom {:member [{:args [:A {:head [:A] :tail :_}]
-                           :body []}
-                          {:args [:A {:head [:A] :tail :X}]
-                           :body [{:name :member
-                                   :args [:A :X]}]}]}))
+
+
+(defn -: [name args body]
+  (-->structure name args))
+
+
+(-: :member [:A :X [:A :B]] [])
+(-: :int [0 [1 2]] [])
+
+
+
+
 
 
 (defn interpret[query])

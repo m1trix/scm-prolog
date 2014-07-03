@@ -18,6 +18,9 @@
 (defn pl-atom? [x]
   (= (type x) logical_programming.terms.PL-Atom))
 
+(defn -->atom [keyw]
+  (PL-Atom. keyw))
+
 (defn unify-atoms
   "Two atoms unify if they are the same."
   [x y]
@@ -33,6 +36,9 @@
 ;;
 
 (defrecord PL-Number [value])
+
+(defn -->number [n]
+  (PL-Number. n))
 
 (defn pl-number? [x]
   (= (type x) logical_programming.terms.PL-Number))
@@ -53,9 +59,18 @@
 (defn pl-structure? [x]
   (= (type x) logical_programming.terms.PL-Structure))
 
+(declare -->arg)
+
+(defn -->args [arg-list]
+  (mapv -->arg arg-list))
+
+(defn -->structure [name args]
+  (let [args-new (-->args args)]
+    (PL-Structure. name args-new)))
+
 (defn unify-args
-  [x y]
-  (let [uargs (map unify x y)
+  [x y pool]
+  (let [uargs (map #(unify %1 %2 pool) x y)
         hits (count (filter true? uargs))]
     (if (different? (count x) hits)
       false
@@ -85,6 +100,9 @@
 ;;
 (defrecord PL-Variable [name value binds])
 
+(defn -->variable [v]
+  (PL-Variable. v nil #{}))
+
 (defn pl-variable? [x]
   (= (type x) logical_programming.terms.PL-Variable))
 
@@ -102,6 +120,9 @@
 ;;  tom. and 'tom'. can be unified.
 ;;
 (defrecord PL-String [word])
+
+(defn -->string [s]
+  (PL-String. s))
 
 (defn pl-string? [x]
   (= (type x) logical_programming.terms.PL-String))
@@ -123,6 +144,70 @@
 ;;
 (defrecord PL-List [head tail])
 
+(defn -->head [vec]
+  (loop [res [] v vec]
+    (if (empty? v)
+      [res v]
+      (let [x (first v)]
+        (if (same? x :|)
+          [res (rest v)]
+          (recur (conj res (-->arg x))
+                 (rest v)))))))
+
+(defn -->tail [vec]
+  (if (empty? vec)
+    nil
+    (-->arg (first vec))))
+
+(defn -->list [vec]
+  (let [[head remain] (-->head vec)]
+    (PL-List. head (-->tail remain))))
+
+(-->list [1 2 :| [2]] )
+
+
+
+
 (defn pl-list? [x]
   (= (type x) logical_programming.terms.PL-List))
+
+
+;; =============================================================================
+;;  The common unifier.
+;;  It automaticly recognizes objects types and unifies them.
+;;
+;;  The pool is the map of all variables in the current stack frame of the interpreter.
+;;
+(defn unify [x y pool]
+  (if (pl-variable? x)
+    (if (pl-variable? y)
+      (let [[ux uy] (unify-variables x y)]
+        (assoc pool (:name ux) ux (:name uy) uy))
+      (assoc pool (:name x) (PL-Variable. (:name x) y #{})))
+    (if (and (pl-structure? x) (pl-structure? y))
+      (unify-structures x y))))
+
+
+(defn -->arg [a]
+  (if (keyword? a)
+    (if (a-z? a)
+      (-->atom a)
+      (-->variable a))
+    (if (number? a)
+      (-->number a)
+      (if (vector? a)
+        (-->list a)))))
+
+
+
+;; ============================================================================
+;;  Prolog Funct: member(A, [_|X]) :- member(A, X).
+;;  It's place is not among the Terms (I think), but so be it.
+;;
+;;  The :- sign is called "neck". It means body -> head.
+;;  The head is the structure of the funct - name and arguments list.
+;;  The body is a list of structures.
+;;
+(defrecord Funct [head body])
+
 
