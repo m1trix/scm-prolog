@@ -69,20 +69,20 @@
     (PL-Structure. name args-new)))
 
 (defn unify-args
-  [x y pool]
+  [arg1 arg2 arg-pool]
   (loop [res []
-         ax x
-         ay y
-         p pool]
-    (if (empty? ax)
-      [res p]
-      (let [[az ap] (unify (first ax) (first ay) p)]
-        (if (false? az)
-          [false pool]
-          (recur (conj res az)
-                 (rest ax)
-                 (rest ay)
-                 ap))))))
+         x arg1
+         y arg2
+         pool arg-pool]
+    (if (empty? x)
+      [res pool]
+      (let [[z p] (unify (first x) (first y) pool)]
+        (if (false? z)
+          [false arg-pool]
+          (recur (conj res z)
+                 (rest x)
+                 (rest y)
+                 p))))))
 
 (defn unify-structures
   "Two structures unify if they have the same name and arity, and each pair of respective arguments unify."
