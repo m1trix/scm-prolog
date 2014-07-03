@@ -98,10 +98,10 @@
 
 
 ;; ============================================================================
-;;  Prolog String: "str1"
-;;  They are actualy lists of ASCII codes.
+;;  Prolog String: 'str1'
+;;  tom. and 'tom'. can be unified.
 ;;
-(defrecord PL-String [elems])
+(defrecord PL-String [word])
 
 (defn pl-string? [x]
   (= (type x) logical_programming.terms.PL-String))
@@ -109,10 +109,6 @@
 (defn unify-strings
   "Two strings unify if and only if they have precisely the same characters in them."
   [x y]
-  (if
-    (->
-      (map different? x y)
-      (first)
-      (not))
+  (if (= (:word x) (:word y))
     x
     false))
