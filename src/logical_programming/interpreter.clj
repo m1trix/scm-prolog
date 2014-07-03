@@ -34,5 +34,3 @@
     (print-err "Empty query!")
     (interpret query)))
 
-
-

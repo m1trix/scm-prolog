@@ -10,7 +10,8 @@
 
 ;; ===========================================================================
 ;;  Prolog Atoms: cat. dog.
-;;  They are more like facts - Prolog proves them to be true.
+;;  They are more like facts - Prolog treats them as a TRUE value.
+;;  An Atom name always starts with a small letter.
 ;;
 (defrecord PL-Atom [name])
 
@@ -18,7 +19,7 @@
   (= (type x) logical_programming.terms.PL-Atom))
 
 (defn unify-atoms
-  ;; Two atoms unify if they are the same.
+  "Two atoms unify if they are the same."
   [x y]
   (if (same? (:name x) (:name y))
     x
@@ -27,7 +28,7 @@
 
 
 ;; ===========================================================================
-;;  Prolog Numbers: 1, 5.5.
+;;  Prolog Numbers: 1. 5.5.
 ;;  They are just numbers.
 ;;
 
@@ -37,14 +38,14 @@
   (= (type x) logical_programming.terms.PL-Number))
 
 (defn unify-numbers
-
+  ""
   [x y]
   (if (same? (:value x) (:value y))
     x
     false))
 
 ;; ===========================================================================
-;;  Prolog Structures: cat(tom), cat(X).
+;;  Prolog Structures: cat(tom). member(X, Y).
 ;;  Each structure has a name and arguments.
 ;;
 (defrecord PL-Structure [name arguments])
@@ -61,7 +62,7 @@
       uargs)))
 
 (defn unify-structures
-  ;; Two structures unify if they have the same name and arity, and each pair of respective arguments unify.
+  "Two structures unify if they have the same name and arity, and each pair of respective arguments unify."
   [x y]
   (if (different? (:name x) (:name y))
     false
@@ -75,6 +76,22 @@
 
 
 
+;; ============================================================================
+;;  Prolog Variable: X. Whatever.
+;;  They do not have a value at their creation.
+;;  Once they are evaluated, they cannot be changed.
+;;  A Variable name always starts with a capital letter.
+;;  The uni-list is a set, that holds all other variables, that are bound to the current one.
+;;
+(defrecord PL-Variable [name value binds])
 
+(defn pl-variable? [x]
+  (= (type x) logical_programming.terms.PL-Variable))
 
+(defn unify-variables
+  "Two variables unify by agreeing to "share" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
+  [x y]
+  (let [new-x (PL-Variable. (:name x) nil (assoc (:binds x) (:name y)))
+        new-y (PL-Variable. (:name y) nil (assoc (:binds y) (:name x)))]
+    [new-x new-y]))
 
