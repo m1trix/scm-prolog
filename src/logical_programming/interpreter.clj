@@ -10,7 +10,17 @@
 (def knowledge-base (atom { }))
 
 
-(defn interpret[query])
+(defn interpret
+  "Recieves a quary of rules and gives the solution."
+  ([query] interpret [(atom query) (atom []) (atom {})])
+  ;; >>> STEP 1 <<<
+  ([query stack pool] ;; All these are atoms.
+   ;; >>> STEP 2 <<<
+   (while (not-empty @query)
+     (let [goal (first @query)]
+       goal))))
+
+(interpret [[(-->structure :member [:X :Y])]])
 
 (defn ?-
   "A function that is used by the UI to interpret user queries."

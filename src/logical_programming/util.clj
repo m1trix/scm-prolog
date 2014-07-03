@@ -29,6 +29,7 @@
         false
         true))))
 
+
 (defn A-Z? [key]
   "Tells if a keyword begins with a caital letter."
   (let [s (str key)]
