@@ -70,24 +70,33 @@
 
 (defn unify-args
   [x y pool]
-  (let [uargs (map #(unify %1 %2 pool) x y)
-        hits (count (filter true? uargs))]
-    (if (different? (count x) hits)
-      false
-      uargs)))
+  (loop [res []
+         ax x
+         ay y
+         p pool]
+    (if (empty? ax)
+      [res p]
+      (let [[az ap] (unify (first ax) (first ay) p)]
+        (if (false? az)
+          [false pool]
+          (recur (conj res az)
+                 (rest ax)
+                 (rest ay)
+                 ap))))))
 
 (defn unify-structures
   "Two structures unify if they have the same name and arity, and each pair of respective arguments unify."
-  [x y]
+  [x y pool]
   (if (different? (:name x) (:name y))
     false
     (if (different? (arity x) (arity y))
       false
-      (let [uargs (unify-args (:args x)
-                              (:args y))]
+      (let [[uargs upool] (unify-args (:args x)
+                                      (:args y)
+                                      pool)]
         (if (false? uargs)
           false
-          (PL-Structure. (:name x) uargs))))))
+          [(PL-Structure. (:name x) uargs) upool])))))
 
 
 
@@ -100,8 +109,13 @@
 ;;
 (defrecord PL-Variable [name value binds])
 
-(defn -->variable [v]
-  (PL-Variable. v nil #{}))
+(defn -->variable
+  ([name]
+   (-->variable name nil []))
+  ([name val]
+   (-->variable name val []))
+  ([name val binds]
+    (PL-Variable. name val binds)))
 
 (defn pl-variable? [x]
   (= (type x) logical_programming.terms.PL-Variable))
@@ -163,9 +177,6 @@
   (let [[head remain] (-->head vec)]
     (PL-List. head (-->tail remain))))
 
-(-->list [1 2 :| [2]] )
-
-
 
 
 (defn pl-list? [x]
@@ -178,14 +189,45 @@
 ;;
 ;;  The pool is the map of all variables in the current stack frame of the interpreter.
 ;;
+
+
+(defn bind
+  "Binds PL-Variables x and y together."
+  [x y pool]
+  (let [x-new (PL-Variable. (:name x) nil (:binds x))
+        y-new (PL-Variable. (:name y) nil (:binds y))
+        z-new (PL-Variable. (keyword (gensym)) nil [(:name x) (:name y)])
+        pool-new (assoc pool (:name x) x (:name y) y)]
+    [z-new pool-new]))
+
+
+(defn evaluate
+  "Evaluates Pl-Variable x with whatever y is"
+  [x y pool]
+  (let [new-pool (assoc pool (:name x) (-->variable (:name x) y #{}))]
+    [y new-pool]))
+
+
 (defn unify [x y pool]
-  (if (pl-variable? x)
-    (if (pl-variable? y)
-      (let [[ux uy] (unify-variables x y)]
-        (assoc pool (:name ux) ux (:name uy) uy))
-      (assoc pool (:name x) (PL-Variable. (:name x) y #{})))
-    (if (and (pl-structure? x) (pl-structure? y))
-      (unify-structures x y))))
+  (cond
+   (and (pl-variable? x) (pl-variable? y))
+     (bind x y pool)
+   (pl-variable? x)
+     (evaluate x y pool)
+   (pl-variable? y)
+     (evaluate y x pool)
+   (different? (type x) (type y))
+     false
+   (pl-atom? x)
+     [(unify-atoms x y) pool]
+   (pl-number? x)
+     [(unify-numbers x y) pool]
+   (pl-structure? x)
+     (unify-structures x y pool)))
+
+
+(unify (-->structure :int [1]) (-->structure :int [2]) {})
+
 
 
 (defn -->arg [a]
@@ -195,8 +237,8 @@
       (if (A-Z? a)
         (-->variable a)
         (if (same? a :_)
-          (-->variable a)
-          (throw "Illigal name."))))
+          (-->variable (keyword (gensym)))
+          (throw (Exception. (str "Argument " a " has illigal name."))))))
     (if (number? a)
       (-->number a)
       (if (vector? a)
@@ -205,11 +247,11 @@
 
 
 ;; ============================================================================
-;;  Prolog Funct: member(A, [_|X]) :- member(A, X).
+;;  Prolog Functor: member(A, [_|X]) :- member(A, X).
 ;;  It's place is not among the Terms (I think), but so be it.
 ;;
-;;  The :- sign is called "neck". It means body -> head.
-;;  The head is the structure of the funct - name and arguments list.
+;;  The :- sign is called "neck". It means "if body, then haed".
+;;  The head is the structure of the functor - name and arguments list.
 ;;  The body is a list of structures.
 ;;
 (defrecord Functor [head body])

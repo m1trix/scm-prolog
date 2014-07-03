@@ -25,7 +25,7 @@
   (let [s (str key)]
     (if (< 0 (compare "a" s))
       false
-      (if(< 0 (compare s "z"))
+      (if(> 0 (compare s "z"))
         false
         true))))
 
@@ -35,7 +35,7 @@
   (let [s (str key)]
     (if (< 0 (compare "A" s))
       false
-      (if(< 0 (compare s "Z"))
+      (if(> 0 (compare s "Z"))
         false
         true))))
 
