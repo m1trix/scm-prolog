@@ -6,6 +6,7 @@
   (:use [logical-programming.util]))
 
 
+(declare unify)
 
 ;; ===========================================================================
 ;;  Prolog Atoms: cat. dog.
@@ -41,3 +42,39 @@
   (if (same? (:value x) (:value y))
     x
     false))
+
+;; ===========================================================================
+;;  Prolog Structures: cat(tom), cat(X).
+;;  Each structure has a name and arguments.
+;;
+(defrecord PL-Structure [name arguments])
+
+(defn pl-structure? [x]
+  (= (type x) logical_programming.terms.PL-Structure))
+
+(defn unify-args
+  [x y]
+  (let [uargs (map unify x y)
+        hits (count (filter true? uargs))]
+    (if (different? (count x) hits)
+      false
+      uargs)))
+
+(defn unify-structures
+  ;; Two structures unify if they have the same name and arity, and each pair of respective arguments unify.
+  [x y]
+  (if (different? (:name x) (:name y))
+    false
+    (if (different? (arity x) (arity y))
+      false
+      (let [uargs (unify-args (:args x)
+                                (:args y))]
+        (if (false? uargs)
+          false
+          (PL-Structure. (:name x) uargs))))))
+
+
+
+
+
+
