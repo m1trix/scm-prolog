@@ -97,3 +97,22 @@
 
 
 
+;; ============================================================================
+;;  Prolog String: "str1"
+;;  They are actualy lists of ASCII codes.
+;;
+(defrecord PL-String [elems])
+
+(defn pl-string? [x]
+  (= (type x) logical_programming.terms.PL-String))
+
+(defn unify-strings
+  "Two strings unify if and only if they have precisely the same characters in them."
+  [x y]
+  (if
+    (->
+      (map different? x y)
+      (first)
+      (not))
+    x
+    false))
