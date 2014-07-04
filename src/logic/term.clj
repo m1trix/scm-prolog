@@ -2,12 +2,11 @@
 ;;  This file contains all types of Terms that Prolog uses in order to work.
 ;; ==========================================================================
 
-(ns logic.term)
+(ns logic.term
+  [:require [logic.util :refer :all]])
 
-(use 'logic.util)
 
-
-(declare unify)
+(def unify)
 
 ;; ===========================================================================
 ;;  Prolog Atoms: cat. dog.
@@ -17,7 +16,7 @@
 (defrecord PL-Atom [name])
 
 (defn pl-atom? [x]
-  (= (type x) logic.terms.PL-Atom))
+  (= (type x) logic.term.PL-Atom))
 
 (defn -->atom [keyw]
   (PL-Atom. keyw))
@@ -42,7 +41,7 @@
   (PL-Number. n))
 
 (defn pl-number? [x]
-  (= (type x) logic.terms.PL-Number))
+  (= (type x) logic.term.PL-Number))
 
 (defn unify-numbers
   "Two numbers unify if they have the same value."
@@ -58,7 +57,7 @@
 (defrecord PL-Structure [name args])
 
 (defn pl-structure? [x]
-  (= (type x) logic.terms.PL-Structure))
+  (= (type x) logic.term.PL-Structure))
 
 (declare -->arg)
 
@@ -85,7 +84,6 @@
                  (rest y)
                  p))))))
 
-(unify-args [(-->number 0)] [(-->number 0)] {})
 
 (defn unify-structures
   "Two structures unify if they have the same name and arity, and each pair of respective arguments unify."
@@ -119,7 +117,7 @@
     (PL-Variable. name val binds)))
 
 (defn pl-variable? [x]
-  (= (type x) logic.terms.PL-Variable))
+  (= (type x) logic.term.PL-Variable))
 
 (defn unify-variables
   "Two variables unify by agreeing to \"share\" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
@@ -140,7 +138,7 @@
   (PL-String. s))
 
 (defn pl-string? [x]
-  (= (type x) logic.terms.PL-String))
+  (= (type x) logic.term.PL-String))
 
 (defn unify-strings
   "Two strings unify if and only if they have precisely the same characters in them."
@@ -181,7 +179,7 @@
 
 
 (defn pl-list? [x]
-  (= (type x) logic.terms.PL-List))
+  (= (type x) logic.term.PL-List))
 
 
 ;; =============================================================================
@@ -205,8 +203,7 @@
 (defn evaluate
   "Evaluates Pl-Variable x with whatever y is"
   [x y pool]
-  (let [new-pool (evaluate-many (:binds x) y pool)
-        new-pool (assoc pool (:name x) (-->variable (:name x) y []))]
+  (let [new-pool (assoc pool (:name x) (-->variable (:name x) y []))]
     [y new-pool]))
 
 
