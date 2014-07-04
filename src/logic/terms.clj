@@ -2,8 +2,8 @@
 ;;  This file contains all types of Terms that Prolog uses in order to work.
 ;; ==========================================================================
 
-(ns logical_programming.terms
-  (:require [logical-programming.util :refer :all]))
+(ns logic.terms
+  (:require [logic.util :refer :all]))
 
 
 (declare unify)
@@ -16,7 +16,7 @@
 (defrecord PL-Atom [name])
 
 (defn pl-atom? [x]
-  (= (type x) logical_programming.terms.PL-Atom))
+  (= (type x) logic.terms.PL-Atom))
 
 (defn -->atom [keyw]
   (PL-Atom. keyw))
@@ -41,7 +41,7 @@
   (PL-Number. n))
 
 (defn pl-number? [x]
-  (= (type x) logical_programming.terms.PL-Number))
+  (= (type x) logic.terms.PL-Number))
 
 (defn unify-numbers
   "Two numbers unify if they have the same value."
@@ -57,7 +57,7 @@
 (defrecord PL-Structure [name args])
 
 (defn pl-structure? [x]
-  (= (type x) logical_programming.terms.PL-Structure))
+  (= (type x) logic.terms.PL-Structure))
 
 (declare -->arg)
 
@@ -118,7 +118,7 @@
     (PL-Variable. name val binds)))
 
 (defn pl-variable? [x]
-  (= (type x) logical_programming.terms.PL-Variable))
+  (= (type x) logic.terms.PL-Variable))
 
 (defn unify-variables
   "Two variables unify by agreeing to \"share\" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
@@ -139,7 +139,7 @@
   (PL-String. s))
 
 (defn pl-string? [x]
-  (= (type x) logical_programming.terms.PL-String))
+  (= (type x) logic.terms.PL-String))
 
 (defn unify-strings
   "Two strings unify if and only if they have precisely the same characters in them."
@@ -180,7 +180,7 @@
 
 
 (defn pl-list? [x]
-  (= (type x) logical_programming.terms.PL-List))
+  (= (type x) logic.terms.PL-List))
 
 
 ;; =============================================================================

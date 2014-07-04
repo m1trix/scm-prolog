@@ -1,1 +1,1 @@
-(ns logical-programming.parser)
+(ns logic.parser)

@@ -2,7 +2,7 @@
 ;;  This file contains some utility functions.
 ;; ============================================
 
-(ns logical-programming.util)
+(ns logic.util)
 
 
 (defn different? [X Y]

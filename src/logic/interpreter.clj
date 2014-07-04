@@ -1,6 +1,6 @@
-(ns logical-programming.interpreter
-  (:use [logical-programming.util]
-        [logical-programming.terms]))
+(ns logic.interpreter
+  (:use [logic.util]
+        [logic.terms]))
 
 ;;
 ;;  This is the source of all knowledge.

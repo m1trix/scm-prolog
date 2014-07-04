@@ -1,7 +1,8 @@
 (use '[clojure.core.match :only (match)])
 
-(ns logical_programming.core
-  (:use [logical_programming.terms]))
+(ns logic.core
+  (:use [logic.terms]
+        [logic.parser]))
 
 (defn -main
   "Entry Point."
@@ -19,4 +20,4 @@
         (print-err "Some error"))))
   (println "\u001b[33mHope to see you again soon! \u001b[0m \n"))
 
-(-->structure :int [0])
+;; (-->structure :int [0])
