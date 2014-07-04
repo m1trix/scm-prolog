@@ -1,15 +1,15 @@
 (use '[clojure.core.match :only (match)])
 
-(ns logical-programming.core
-  (:use [logical-programming.util]
-        [logical-programming.parser]
-        [logical-programming.interpreter]))
+(ns logical_programming.core
+  (:use [logical_programming.terms]))
 
 (defn -main
   "Entry Point."
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
-  (?- [{:name :member :args [:X :Y]}])
+
+  (println (-->structure :member [:A :X [:A :| :X]]))
+
   (let [input (atom "")]
     (while (different? @input "exit")
       (do
@@ -18,3 +18,5 @@
         (reset! input (read-line))
         (print-err "Some error"))))
   (println "\u001b[33mHope to see you again soon! \u001b[0m \n"))
+
+(-->structure :int [0])

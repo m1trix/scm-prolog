@@ -2,7 +2,7 @@
 ;;  This file contains all types of Terms that Prolog uses in order to work.
 ;; ==========================================================================
 
-(ns logical-programming.terms
+(ns logical_programming.terms
   (:require [logical-programming.util :refer :all]))
 
 
@@ -204,7 +204,8 @@
 (defn evaluate
   "Evaluates Pl-Variable x with whatever y is"
   [x y pool]
-  (let [new-pool (assoc pool (:name x) (-->variable (:name x) y #{}))]
+  (let [new-pool (evaluate-many (:binds x) y pool)
+        new-pool (assoc pool (:name x) (-->variable (:name x) y []))]
     [y new-pool]))
 
 
