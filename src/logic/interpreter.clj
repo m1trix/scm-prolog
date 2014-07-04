@@ -12,24 +12,26 @@
 
 
 
-(defn match [goal pool]
+(defn match
+  "Returns a list of all matches of the goal with clauses from the knowledge-base."
+  [goal pool]
   (let [possible ((:name goal) @knowledge-base)]
     (if (false? possible)
       false
-      (mapv #(unify goal (:head %) pool) possible))))
+      (loop [functors []
+             clauses possible
+             new-pool]
+
+        (if (empty? clauses)
+          [functors new-pool]
+          (let [top-clase (first clauses)
+                new-struct (generate-structure (:head top-clause))
+                [matched new-pool] (unify-structure goal new-struct new-pool)]
+            (if (false? matched)
+              [false pool])))))))
 
 
-
-(defn interpret
-  ([query] interpret ((atom query) (atom []) (atom {})))
-  ;; >>> STEP 1 <<<
-  ([query stack pool]
-   ;; >>> STEP 2 <<<
-   (while (not-empty @query)
-     (let [goal (first @query)
-           first (match @pool)]
-
-       ))))
+(defn interpret [query])
 
 
 (defn ?-

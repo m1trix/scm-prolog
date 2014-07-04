@@ -100,16 +100,22 @@
           false
           [(PL-Structure. (:name x) new-args) new-pool])))))
 
-(defn generate-structure [struct]
-  (loop [new-args []
-         old-args (:args struct)
-         names {}]
-    (if (empty? old-args)
-      (PL-Structure. (:name struct) new-args)
-      (let [[new-elem new-names] (generate (first old-args) names)]
-        (recur (conj new-args new-elem)
-               (rest old-args)
-               new-names)))))
+
+(defn generate-structure
+  "Generates a structure with random variable names, based on the original names."
+  ([struct]
+   (let [[new-struct new-names] (generate-structure struct {})]
+     new-struct))
+  ([struct old-names]
+   (loop [new-args []
+          old-args (:args struct)
+          names old-names]
+     (if (empty? old-args)
+       [(PL-Structure. (:name struct) new-args) names]
+       (let [[new-elem new-names] (generate (first old-args) names)]
+         (recur (conj new-args new-elem)
+                (rest old-args)
+                new-names))))))
 
 ;; ============================================================================
 ;;  Prolog Variable: X. Whatever.
@@ -309,3 +315,16 @@
         new-body (mapv -->structure body)]
     (Functor. struct body)))
 
+
+(defn generate-functor [functor names]
+  (let [[new-head head-names] (generate-structure (:head functor) names)]
+    (loop [new-body []
+           old-body (:body functor)
+           new-names head-names]
+      (if (empty? old-body)
+        [(Functor. new-head new-body) new-names]
+        (let [elem (first old-body)
+              [new-elem newer-names] (generate-structure elem new-names)]
+          (recur (conj new-body new-elem)
+                 (rest old-body)
+                 new-names))))))
