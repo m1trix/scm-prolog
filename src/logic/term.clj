@@ -196,9 +196,8 @@
   (let [x-new (PL-Variable. (:name x) nil (:binds x))
         y-new (PL-Variable. (:name y) nil (:binds y))
         z-new (PL-Variable. (keyword (gensym)) nil [(:name x) (:name y)])
-        pool-new (assoc pool (:name x) x (:name y) y)]
+        pool-new (assoc pool (:name x) x (:name y) y (:name z-new) z-new)]
     [z-new pool-new]))
-
 
 (declare evaluate)
 
@@ -209,8 +208,8 @@
          p pool]
     (if (empty? v)
       p
-      (let [first (first v)
-            [_ new-p] (evaluate first y p)]
+      (let [f (first v)
+            [_ new-p] (evaluate (f p) y p)]
         (recur (rest v) new-p)))))
 
 (defn evaluate
