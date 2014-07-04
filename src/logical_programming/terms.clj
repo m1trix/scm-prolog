@@ -54,7 +54,7 @@
 ;;  Prolog Structures: cat(tom). member(X, Y).
 ;;  Each structure has a name and arguments.
 ;;
-(defrecord PL-Structure [name arguments])
+(defrecord PL-Structure [name args])
 
 (defn pl-structure? [x]
   (= (type x) logical_programming.terms.PL-Structure))
@@ -84,6 +84,8 @@
                  (rest y)
                  p))))))
 
+(unify-args [(-->number 0)] [(-->number 0)] {})
+
 (defn unify-structures
   "Two structures unify if they have the same name and arity, and each pair of respective arguments unify."
   [x y pool]
@@ -91,14 +93,12 @@
     false
     (if (different? (arity x) (arity y))
       false
-      (let [[uargs upool] (unify-args (:args x)
-                                      (:args y)
-                                      pool)]
-        (if (false? uargs)
+      (let [[new-args new-pool] (unify-args (:args x)
+                                            (:args y)
+                                            pool)]
+        (if (false? new-args)
           false
-          [(PL-Structure. (:name x) uargs) upool])))))
-
-
+          [(PL-Structure. (:name x) new-args) new-pool])))))
 
 ;; ============================================================================
 ;;  Prolog Variable: X. Whatever.
@@ -224,10 +224,6 @@
      [(unify-numbers x y) pool]
    (pl-structure? x)
      (unify-structures x y pool)))
-
-
-(unify (-->structure :int [1]) (-->structure :int [2]) {})
-
 
 
 (defn -->arg [a]
