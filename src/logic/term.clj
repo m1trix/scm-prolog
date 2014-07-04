@@ -200,10 +200,23 @@
     [z-new pool-new]))
 
 
+(declare evaluate)
+
+(defn evaluate-many
+  ;; evaluates all variables with value y in the pool
+  [vars y pool]
+  (loop [v vars
+         p pool]
+    (if (empty? v)
+      p
+      (let [first (first v)
+            [_ new-p] (evaluate first y p)]
+        (recur (rest v) new-p)))))
+
 (defn evaluate
   "Evaluates Pl-Variable x with whatever y is"
   [x y pool]
-  (let [new-pool (assoc pool (:name x) (-->variable (:name x) y []))]
+  (let [new-pool (assoc (evaluate-many (:binds x) y pool) (:name x) (-->variable (:name x) y []))]
     [y new-pool]))
 
 
