@@ -24,10 +24,10 @@
 
 (defn unify-atoms
   "Two atoms unify if they are the same."
-  [x y]
+  [x y pool]
   (if (same? (:name x) (:name y))
-    x
-    false))
+    [x pool]
+    [false pool]))
 
 
 
@@ -46,10 +46,10 @@
 
 (defn unify-numbers
   "Two numbers unify if they have the same value."
-  [x y]
+  [x y pool]
   (if (same? (:value x) (:value y))
-    x
-    false))
+    [x pool]
+    [false pool]))
 
 ;; ===========================================================================
 ;;  Prolog Structures: cat(tom). member(X, Y).
@@ -90,9 +90,9 @@
   "Two structures unify if they have the same name and arity, and each pair of respective arguments unify."
   [x y pool]
   (if (different? (:name x) (:name y))
-    false
+    [false pool]
     (if (different? (arity x) (arity y))
-      false
+      [false pool]
       (let [[new-args new-pool] (unify-args (:args x)
                                             (:args y)
                                             pool)]
@@ -103,19 +103,16 @@
 
 (defn generate-structure
   "Generates a structure with random variable names, based on the original names."
-  ([struct]
-   (let [[new-struct new-names] (generate-structure struct {})]
-     new-struct))
-  ([struct old-names]
-   (loop [new-args []
-          old-args (:args struct)
-          names old-names]
-     (if (empty? old-args)
-       [(PL-Structure. (:name struct) new-args) names]
-       (let [[new-elem new-names] (generate (first old-args) names)]
-         (recur (conj new-args new-elem)
-                (rest old-args)
-                new-names))))))
+  [struct old-names]
+  (loop [new-args []
+         old-args (:args struct)
+         names old-names]
+    (if (empty? old-args)
+      [(PL-Structure. (:name struct) new-args) names]
+      (let [[new-elem new-names] (generate (first old-args) names)]
+        (recur (conj new-args new-elem)
+               (rest old-args)
+               new-names)))))
 
 ;; ============================================================================
 ;;  Prolog Variable: X. Whatever.
@@ -232,10 +229,9 @@
   "Binds PL-Variables x and y together."
   [x y pool]
   (let [x-new (PL-Variable. (:name x) nil (:binds x))
-        y-new (PL-Variable. (:name y) nil (:binds y))
-        z-new (PL-Variable. (keyword (gensym)) nil [(:name x) (:name y)])
-        pool-new (assoc pool (:name x) x (:name y) y (:name z-new) z-new)]
-    [z-new pool-new]))
+        y-new (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))
+        pool-new (assoc pool (:name x) x (:name y) y)]
+    [y-new pool-new]))
 
 (declare evaluate)
 
@@ -268,11 +264,12 @@
    (different? (type x) (type y))
      false
    (pl-atom? x)
-     [(unify-atoms x y) pool]
+     (unify-atoms x y pool)
    (pl-number? x)
-     [(unify-numbers x y) pool]
+     (unify-numbers x y pool)
    (pl-structure? x)
      (unify-structures x y pool)))
+
 
 (defn generate [elem names]
   (cond
@@ -311,9 +308,9 @@
 (defrecord Functor [head body])
 
 (defn -->functor [title args body]
-  (let [struct (-->structure title args)
-        new-body (mapv -->structure body)]
-    (Functor. struct body)))
+  (let [head (-->structure title args)
+        new-body (mapv #(-->structure (first %1) (second %1)) body)]
+    (Functor. head new-body)))
 
 
 (defn generate-functor [functor names]
@@ -327,4 +324,67 @@
               [new-elem newer-names] (generate-structure elem new-names)]
           (recur (conj new-body new-elem)
                  (rest old-body)
-                 new-names))))))
+                 newer-names))))))
+
+(def give-values)
+
+
+(defn give-values-var
+  "Gives a variable it's coresponding value from a pool."
+  [var pool]
+  (let [pool-var ((:name var) pool)]
+    (if (nil? pool-var)
+      var
+      (:value pool-var))))
+
+(defn give-values-list
+  "Gives to a list the values from a pool."
+  [list pool]
+  (let [new-tail (give-values (:tail list) pool)]
+    (loop [new-head []
+           old-head (:head list)]
+      (if (empty? old-head)
+        (PL-List. new-head new-tail)
+        (let [new-elem (give-values (first old-head)
+                                    pool)]
+          (recur (conj new-head new-elem)
+                 (rest old-head)))))))
+
+(defn give-values-struct
+  "Gives a structure the values from a pool."
+  [struct pool]
+  (loop [new-args []
+         old-args (:args struct)]
+    (if (empty? old-args)
+      (PL-Structure. (:name struct) new-args)
+      (let [elem (first old-args)
+            new-elem (give-values elem pool)]
+        (recur (conj new-args new-elem)
+               (rest old-args))))))
+
+(defn give-values
+  [x pool]
+  (cond
+   (pl-list? x)
+     (give-values-list x pool)
+   (pl-variable? x)
+     (give-values-var x pool)
+   (pl-structure? x)
+     (give-values-struct x pool)
+   :else x))
+
+
+(defn match-to-functor
+  "Matches a struct to a functor"
+  [struct functor pool]
+  (let [[new-head head-pool] (unify-structures struct (:head functor) pool)]
+    (if (false? new-head)
+      [false pool]
+      (loop [new-body []
+             old-body (:body functor)]
+        (if (empty? old-body)
+          [(Functor. new-head new-body) head-pool]
+          (let [elem (first old-body)
+                new-elem (give-values-struct elem head-pool)]
+            (recur (conj new-body new-elem)
+                   (rest old-body))))))))

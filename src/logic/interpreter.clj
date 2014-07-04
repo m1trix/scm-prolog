@@ -14,22 +14,12 @@
 
 (defn match
   "Returns a list of all matches of the goal with clauses from the knowledge-base."
-  [goal pool]
-  (let [possible ((:name goal) @knowledge-base)]
-    (if (false? possible)
-      false
-      (loop [functors []
-             clauses possible
-             new-pool]
+  [goal pool])
 
-        (if (empty? clauses)
-          [functors new-pool]
-          (let [top-clase (first clauses)
-                new-struct (generate-structure (:head top-clause))
-                [matched new-pool] (unify-structure goal new-struct new-pool)]
-            (if (false? matched)
-              [false pool])))))))
 
+(generate-functor (-->functor (-->structure :member [:A [:_ :| :X]])
+                              [(-->structure :member [:A :X])])
+                  {})
 
 (defn interpret [query])
 
