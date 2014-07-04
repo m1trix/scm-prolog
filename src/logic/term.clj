@@ -7,6 +7,7 @@
 
 
 (def unify)
+(def generate)
 
 ;; ===========================================================================
 ;;  Prolog Atoms: cat. dog.
@@ -99,6 +100,17 @@
           false
           [(PL-Structure. (:name x) new-args) new-pool])))))
 
+(defn generate-structure [struct]
+  (loop [new-args []
+         old-args (:args struct)
+         names {}]
+    (if (empty? old-args)
+      (PL-Structure. (:name struct) new-args)
+      (let [[new-elem new-names] (generate (first old-args) names)]
+        (recur (conj new-args new-elem)
+               (rest old-args)
+               new-names)))))
+
 ;; ============================================================================
 ;;  Prolog Variable: X. Whatever.
 ;;  They do not have a value at their creation.
@@ -115,6 +127,13 @@
    (-->variable name val []))
   ([name val binds]
     (PL-Variable. name val binds)))
+
+(defn generate-variable [var all-names]
+  (let [mapped-name (get all-names (:name var))]
+    (if (same? mapped-name nil)
+      (let [new-name (keyword (gensym))]
+        [(-->variable new-name) (assoc all-names (:name var) new-name)])
+      [(-->variable mapped-name) all-names])))
 
 (defn pl-variable? [x]
   (= (type x) logic.term.PL-Variable))
@@ -176,6 +195,19 @@
   (let [[head remain] (-->head vec)]
     (PL-List. head (-->tail remain))))
 
+(defn generate-list [list all-names]
+  (loop [new-head []
+         old-head (:head list)
+         new-names all-names]
+    (if (empty? old-head)
+      (let [[new-tail final-names] (generate (:tail list) new-names)]
+        [(PL-List. new-head new-tail) final-names])
+
+      (let [[new-elem newer-names] (generate (first old-head) new-names)]
+        (recur (conj new-head new-elem)
+               (rest old-head)
+               newer-names)))))
+
 
 
 (defn pl-list? [x]
@@ -235,6 +267,15 @@
      [(unify-numbers x y) pool]
    (pl-structure? x)
      (unify-structures x y pool)))
+
+(defn generate [elem names]
+  (cond
+   (pl-variable? elem)
+     (generate-variable elem names)
+   (pl-list? elem)
+     (generate-list elem names)
+   :else
+     [elem names]))
 
 
 (defn -->arg [a]
