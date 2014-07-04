@@ -7,18 +7,32 @@
 ;;  Whatever gets loaded to the program goes here.
 ;;  The interpreter knows only the things that are included in the knowledge-base.
 ;;
-(def knowledge-base (atom { :int [(-->functor :int [:A] [])]}))
-
-
+(def knowledge-base (atom { :member [(-->functor :member [:A [:A :| :_]] [])
+                                     (-->functor :member [:A [:_ :| :X]]
+                                                 [[:member [:A :X]]])]}))
 
 
 (defn match
   "Returns a list of all matches of the goal with clauses from the knowledge-base."
-  [goal pool])
+  [goal pool]
+  (let [all ((:name goal) @knowledge-base)]
+    (if (nil? all)
+      []
+      (loop [result []
+             others all]
+        (if (empty? others)
+          result
+          (let [elem (first others)
+                [new-functor new-pool] (match-to-functor goal elem pool)]
+            (if (false? new-functor)
+              (recur result
+                     (rest others))
+              (recur (conj result [new-functor new-pool])
+                     (rest others)))))))))
 
-
-(generate-functor (-->functor (-->structure :member [:A [:_ :| :X]])
-                              [(-->structure :member [:A :X])])
+(match (-->structure :member [1 [1 2]]) {})
+(match-to-functor (-->structure :member [1 2])
+                  (-->structure :member [:A [:A :| :_]])
                   {})
 
 (defn interpret [query])
