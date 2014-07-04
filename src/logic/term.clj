@@ -70,20 +70,20 @@
     (PL-Structure. name args-new)))
 
 (defn unify-args
-  [arg1 arg2 arg-pool]
+  [x-args y-args pool]
   (loop [res []
-         x arg1
-         y arg2
-         pool arg-pool]
-    (if (empty? x)
-      [res pool]
-      (let [[z p] (unify (first x) (first y) pool)]
-        (if (false? z)
-          [false arg-pool]
-          (recur (conj res z)
-                 (rest x)
-                 (rest y)
-                 p))))))
+         old-x x-args
+         old-y y-args
+         new-pool pool]
+    (if (empty? old-x)
+      [res new-pool]
+      (let [[new-elem newer-pool] (unify (first old-x) (first old-y) new-pool)]
+        (if (false? new-elem)
+          [false pool]
+          (recur (conj res new-elem)
+                 (rest old-x)
+                 (rest old-y)
+                 newer-pool))))))
 
 
 (defn unify-structures
@@ -141,13 +141,6 @@
 (defn pl-variable? [x]
   (= (type x) logic.term.PL-Variable))
 
-(defn unify-variables
-  "Two variables unify by agreeing to \"share\" bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
-  [x y]
-  (let [new-x (PL-Variable. (:name x) nil (conj (:binds x) (:name y)))
-        new-y (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))]
-    [new-x new-y]))
-
 
 
 ;; ============================================================================
@@ -198,6 +191,60 @@
   (let [[head remain] (-->head vec)]
     (PL-List. head (-->tail remain))))
 
+(defn unify-lists
+  "Two lists unify if their initial elements unify, and the lists which remain after removing both initial elements unify."
+  [x y pool]
+  (loop [new-head []
+         head-x (:head x)
+         head-y (:head y)
+         new-pool pool]
+    (cond
+     (and (empty? head-x) (empty? head-y))
+       (cond
+         (and (nil? (:tail x)) (nil? (:tail y)))
+           [(PL-List. new-head nil) new-pool]
+         (and (nil? (:tail x)) (pl-variable? (:tail y)))
+           (let [[new-y newer-pool] (unify (:tail y) (-->list []) new-pool) ]
+             [(PL-List. new-head new-y) newer-pool])
+         (and (nil? (:tail y)) (pl-variable? (:tail x)))
+           (let [[new-x newer-pool] (unify (:tail x) (-->list []) new-pool) ]
+             [(PL-List. new-head new-x) newer-pool])
+         (or (nil? (:tail y)) (nil? (:tail x)))
+           [false pool]
+         :else
+           (let [[new-tail newer-pool] (unify (:tail x) (:tail y) new-pool)]
+             (if (false? new-tail)
+               [false pool]
+               [(PL-List. new-head new-tail) newer-pool])))
+
+     (empty? head-x)
+       (if (nil? (:tail x))
+         [false pool]
+         (let [new-y (PL-List. head-y (:tail y))
+               [new-tail newer-pool] (unify (:tail x) new-y new-pool)]
+           (if (false? new-tail)
+             [false pool]
+             [(PL-List. new-head new-tail) newer-pool])))
+
+     (empty? head-y)
+       (if (nil? (:tail y))
+         [false pool]
+         (let [new-x (PL-List. head-x (:tail x))
+               [new-tail newer-pool] (unify (:tail y) new-x new-pool)]
+           [(PL-List. new-head new-tail) newer-pool]))
+
+     :else
+       (let [[new-elem newer-pool] (unify (first head-x)
+                                          (first head-y)
+                                          new-pool)]
+         (if (false? new-elem)
+           [false pool]
+           (recur (conj new-head new-elem)
+                  (rest head-x)
+                  (rest head-y)
+                  newer-pool))))))
+
+
 (defn generate-list [list all-names]
   (loop [new-head []
          old-head (:head list)
@@ -230,7 +277,7 @@
   [x y pool]
   (let [x-new (PL-Variable. (:name x) nil (:binds x))
         y-new (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))
-        pool-new (assoc pool (:name x) x (:name y) y)]
+        pool-new (assoc pool (:name x) x-new (:name y) y-new)]
     [y-new pool-new]))
 
 (declare evaluate)
@@ -238,19 +285,20 @@
 (defn evaluate-many
   ;; evaluates all variables with value y in the pool
   [vars y pool]
-  (loop [v vars
-         p pool]
-    (if (empty? v)
-      p
-      (let [f (first v)
-            [_ new-p] (evaluate (f p) y p)]
-        (recur (rest v) new-p)))))
+  (loop [others vars
+         new-pool pool]
+    (if (empty? others)
+      new-pool
+      (let [name (first others)
+            [_ newer-pool] (evaluate (name new-pool) y new-pool)]
+        (recur (rest others)
+               newer-pool)))))
 
 (defn evaluate
-  "Evaluates Pl-Variable x with whatever y is"
+  "Evaluates PL-Variable x with whatever y is"
   [x y pool]
-  (let [new-pool (assoc (evaluate-many (:binds x) y pool) (:name x) (-->variable (:name x) y []))]
-    [y new-pool]))
+  (let [new-pool (evaluate-many (:binds x) y pool)]
+  [y (assoc new-pool (:name x) y)]))
 
 
 (defn unify [x y pool]
@@ -268,7 +316,9 @@
    (pl-number? x)
      (unify-numbers x y pool)
    (pl-structure? x)
-     (unify-structures x y pool)))
+     (unify-structures x y pool)
+   (pl-list? x)
+     (unify-lists x y pool)))
 
 
 (defn generate [elem names]
@@ -333,7 +383,7 @@
   "Gives a variable it's coresponding value from a pool."
   [var pool]
   (let [pool-var ((:name var) pool)]
-    (if (nil? pool-var)
+    (if (nil? (:value pool-var))
       var
       (:value pool-var))))
 

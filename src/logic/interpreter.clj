@@ -8,8 +8,8 @@
 ;;  The interpreter knows only the things that are included in the knowledge-base.
 ;;
 (def knowledge-base (atom { :member [(-->functor :member [:A [:A :| :_]] [])
-                                     (-->functor :member [:A [:_ :| :X]]
-                                                 [[:member [:A :X]]])]}))
+                                     ;;(-->functor :member [:A [:_ :| :X]] [[:member [:A :X]]])
+                                     ]}))
 
 
 (defn match
@@ -30,10 +30,15 @@
               (recur (conj result [new-functor new-pool])
                      (rest others)))))))))
 
-(match (-->structure :member [1 [1 2]]) {})
-(match-to-functor (-->structure :member [1 2])
-                  (-->structure :member [:A [:A :| :_]])
-                  {})
+(def demo-struct (-->structure :member [:X [1 2 3 4]]))
+(def struct2 (-->structure :member [:A [:A :| :_]]))
+
+(def str3 (unify-structures demo-struct struct2 {}))
+
+(give-values-struct demo-struct (second str3))
+
+(match demo-struct {})
+
 
 (defn interpret [query])
 
