@@ -2,8 +2,9 @@
 ;;  This file contains all types of Terms that Prolog uses in order to work.
 ;; ==========================================================================
 
-(ns logic.terms
-  (:require [logic.util :refer :all]))
+(ns logic.term)
+
+(use 'logic.util)
 
 
 (declare unify)
