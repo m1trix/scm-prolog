@@ -10,8 +10,6 @@
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
-  (?- [(-->structure :member [:X [1 2 3 4]])])
-
   (let [input (atom "")]
     (while (different? @input "exit")
       (do
