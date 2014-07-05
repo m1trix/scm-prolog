@@ -22,7 +22,7 @@
 (defn >atom< [name]
   (if (a-z? name)
     (PrologAtom. name)
-    (throw (Exception. (str "Illegal PrologAtom name: " (keyword->string name))))))
+    (throw (Exception. (str "Illegal PrologAtom name: \"" (keyword->string name) "\"")))))
 
 
 (defn prolog-atom? [atom]
@@ -46,6 +46,7 @@
 
 
 
+
 ;; ===========================================================================
 ;;  Prolog Numbers: 1. 5.5.
 ;;  They are just numbers.
@@ -56,7 +57,7 @@
 (defn >number< [value]
   (if (number? value)
     (PrologNumber. value)
-    (throw (Exception. (str "Illegal PrologNumber: " value)))))
+    (throw (Exception. (str "Illegal PrologNumber value: \"" value "\"")))))
 
 
 (defn prolog-number? [number]
@@ -76,6 +77,44 @@
   "Prints the number to the screen in a specific format."
   [number]
   (print-blue (:value number)))
+
+
+
+
+
+;; ============================================================================
+;;  Prolog String: 'str1' 'Yes! It is a string!'
+;;  tom. and 'tom'. can be unified.
+;;
+(defrecord PrologString [string])
+
+
+(defn >string< [s]
+  (if (string? s)
+    (PrologString. s)
+    (throw (Exception. (str "Illegal PrologString value: \"" s "\"")))))
+
+
+(defn prolog-string? [string]
+  (same? (type string) logic.term.PrologString))
+
+
+(defn unify-strings
+  "Two strings unify if and only if they have precisely the same characters in them."
+  [string-x string-y pool]
+  (if (= (:string string-x)
+         (:string string-y))
+    [string-x pool]
+    [false pool]))
+
+
+(defn print-string
+  "Prints the string to the screen in a specific format."
+  [s]
+  (print-blue (str \' (:string s) \')))
+
+
+
 
 
 
