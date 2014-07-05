@@ -8,7 +8,7 @@
 ;;  The interpreter knows only the things that are included in the knowledge-base.
 ;;
 (def knowledge-base (atom { :member [(-->functor :member [:A [:A :| :_]] [])
-                                     (-->functor :member [:A [:_ :| :X]] [[:member [:A :X]]])
+                                     ;;(-->functor :member [:A [:_ :| :X]] [[:member [:A :X]]])
                                      ]}))
 
 
@@ -31,16 +31,34 @@
                      (rest others)))))))))
 
 
+
+(defn print-result [pool]
+  (for [x pool]
+    (println x))
+  (print "true. ")
+  (flush))
+
+
+(defn process-clauses [goal clauses pool]
+  (println "Process-Clauses")
+  (if (empty? clauses)
+    (match goal pool)
+    clauses))
+
+
 (defn interpret [input-query]
   ;; >>> STEP 1 <<<
   (let [query (atom input-query)
         stack (atom [])
-        state (atom :running)]
+        state (atom :running)
+        clauses (atom [])
+        pool (atom {})]
     ;; >>> STEP 2 <<<
     (while (not-empty @query)
-      (let [goal (first @query)
-            clauses (atom (match goal {}))]
+      (let [goal (first @query)]
+        (reset! clauses (process-clauses goal @clauses @pool))
         ;; >>> STEP 3 <<<
+        (println ">>> STEP 3 <<<")
         (while (and (empty? @clauses)
                     (same? :running @state))
           ;; >>> STEP 4 <<<
@@ -55,20 +73,23 @@
             (print-err "false.\n")
             (reset! query []))
           ;; >>> STEP 5 <<<
-          (let [top (first @clauses)]
-            (swap! stack conj [@query (rest @clauses)])
+          (let [[top new-pool] (first @clauses)]
+            (println ">>> STEP 5 <<<")
+            (print-result new-pool)
+            (swap! stack conj [@query (vec (rest @clauses))])
+            (reset! pool new-pool)
             ;; >>> STEP 6 <<<
             (let [body (:body top)]
               (if (empty? body)
                 (swap! query rest)
                 (do
                   (swap! query assoc 0 body)
-                  (swap! query flatten))))
+                  (swap! query flatten)
+                  (swap! query vec))))
 
             (if (empty? @query)
               (do
-                (print "true. ")
-                (flush)
+                (print-result @pool)
                 (if (not-empty @stack)
                   (let [sym (read-line)]
                     (if (same? sym ";")
@@ -84,4 +105,6 @@
   (if (empty? query)
     (print-err "Empty query!")
     (interpret query)))
+
+
 
