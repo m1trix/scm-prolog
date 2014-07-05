@@ -45,3 +45,37 @@
     (print-blue text)))
 
 
+
+;; ===========================================================================
+;;  Prolog Numbers: 1. 5.5.
+;;  They are just numbers.
+;;
+(defrecord PrologNumber [value])
+
+
+(defn >number< [value]
+  (if (number? value)
+    (PrologNumber. value)
+    (throw (Exception. (str "Illegal PrologNumber: " value)))))
+
+
+(defn prolog-number? [number]
+  (same? (type number) logic.term.PrologNumber))
+
+
+(defn unify-numbers
+  "Two numbers unify if they have the same value."
+  [number-x number-y pool]
+  (if (same? (:value number-x)
+             (:value number-y))
+    [number-x pool]
+    [false pool]))
+
+
+(defn print-number
+  "Prints the number to the screen in a specific format."
+  [number]
+  (print-blue (:value number)))
+
+
+
