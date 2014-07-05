@@ -8,7 +8,7 @@
 ;;  The interpreter knows only the things that are included in the knowledge-base.
 ;;
 (def knowledge-base (atom { :member [(-->functor :member [:A [:A :| :_]] [])
-                                     ;;(-->functor :member [:A [:_ :| :X]] [[:member [:A :X]]])
+                                     (-->functor :member [:A [:_ :| :X]] [[:member [:A :X]]])
                                      ]}))
 
 
@@ -30,17 +30,52 @@
               (recur (conj result [new-functor new-pool])
                      (rest others)))))))))
 
-(def demo-struct (-->structure :member [:X [1 2 3 4]]))
-(def struct2 (-->structure :member [:A [:A :| :_]]))
 
-(def str3 (unify-structures demo-struct struct2 {}))
+(defn interpret [input-query]
+  ;; >>> STEP 1 <<<
+  (let [query (atom input-query)
+        stack (atom [])
+        state (atom :running)]
+    ;; >>> STEP 2 <<<
+    (while (not-empty @query)
+      (let [goal (first @query)
+            clauses (atom (match goal {}))]
+        ;; >>> STEP 3 <<<
+        (while (and (empty? @clauses)
+                    (same? :running @state))
+          ;; >>> STEP 4 <<<
+          (if (empty? @stack)
+            (reset! state :fail)
+            (let [[old-query old-clauses] (peek @stack)]
+              (swap! stack pop)
+              (reset! query old-query)
+              (reset! clauses old-clauses))))
+        (if (same? :fail @state)
+          (do
+            (print-err "false.\n")
+            (reset! query []))
+          ;; >>> STEP 5 <<<
+          (let [top (first @clauses)]
+            (swap! stack conj [@query (rest @clauses)])
+            ;; >>> STEP 6 <<<
+            (let [body (:body top)]
+              (if (empty? body)
+                (swap! query rest)
+                (do
+                  (swap! query assoc 0 body)
+                  (swap! query flatten))))
 
-(give-values-struct demo-struct (second str3))
-
-(match demo-struct {})
-
-
-(defn interpret [query])
+            (if (empty? @query)
+              (do
+                (print "true. ")
+                (flush)
+                (if (not-empty @stack)
+                  (let [sym (read-line)]
+                    (if (same? sym ";")
+                      (let [[old-query old-clauses] (peek @stack)]
+                        (swap! stack pop)
+                        (reset! query old-query)
+                        (reset! clauses old-clauses)))))))))))))
 
 
 (defn ?-

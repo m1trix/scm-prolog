@@ -272,13 +272,24 @@
 ;;
 
 
+(defn extract-var [var pool]
+  (let [pool-var ((:name var) pool)]
+    (if (nil? pool-var)
+      var
+      pool-var)))
+
 (defn bind
   "Binds PL-Variables x and y together."
   [x y pool]
-  (let [x-new (PL-Variable. (:name x) nil (:binds x))
-        y-new (PL-Variable. (:name y) nil (conj (:binds y) (:name x)))
-        pool-new (assoc pool (:name x) x-new (:name y) y-new)]
-    [y-new pool-new]))
+  (let [new-x (extract-var x pool)
+        new-y (extract-var y pool)]
+    (cond
+     (and (pl-variable? new-x) (pl-variable? new-y))
+       (let [res-x (-->variable (:name x) nil (:binds new-x))
+             res-y (-->variable (:name y) nil (conj (:binds new-y) (:name x)))]
+         [res-y (assoc pool (:name x) res-x (:name y) res-y)])
+     :else
+       (unify new-x new-y pool))))
 
 (declare evaluate)
 
@@ -297,8 +308,11 @@
 (defn evaluate
   "Evaluates PL-Variable x with whatever y is"
   [x y pool]
-  (let [new-pool (evaluate-many (:binds x) y pool)]
-  [y (assoc new-pool (:name x) y)]))
+  (let [new-x (extract-var x pool)]
+    (if (pl-variable? new-x)
+      (let [new-pool (evaluate-many (:binds new-x) y pool)]
+        [y (assoc new-pool (:name new-x) y)])
+      (unify new-x y pool))))
 
 
 (defn unify [x y pool]
@@ -376,31 +390,28 @@
                  (rest old-body)
                  newer-names))))))
 
-(def give-values)
+(def set-values)
 
 
-(defn give-values-var
-  "Gives a variable it's coresponding value from a pool."
+(defn set-values-var
+  "Sets a variable to it's coresponding value from a pool."
   [var pool]
-  (let [pool-var ((:name var) pool)]
-    (if (nil? (:value pool-var))
-      var
-      (:value pool-var))))
+  (extract-var var pool))
 
-(defn give-values-list
+(defn set-values-list
   "Gives to a list the values from a pool."
   [list pool]
-  (let [new-tail (give-values (:tail list) pool)]
+  (let [new-tail (set-values (:tail list) pool)]
     (loop [new-head []
            old-head (:head list)]
       (if (empty? old-head)
         (PL-List. new-head new-tail)
-        (let [new-elem (give-values (first old-head)
+        (let [new-elem (set-values (first old-head)
                                     pool)]
           (recur (conj new-head new-elem)
                  (rest old-head)))))))
 
-(defn give-values-struct
+(defn set-values-struct
   "Gives a structure the values from a pool."
   [struct pool]
   (loop [new-args []
@@ -408,26 +419,27 @@
     (if (empty? old-args)
       (PL-Structure. (:name struct) new-args)
       (let [elem (first old-args)
-            new-elem (give-values elem pool)]
+            new-elem (set-values elem pool)]
         (recur (conj new-args new-elem)
                (rest old-args))))))
 
-(defn give-values
+(defn set-values
   [x pool]
   (cond
    (pl-list? x)
-     (give-values-list x pool)
+     (set-values-list x pool)
    (pl-variable? x)
-     (give-values-var x pool)
+     (set-values-var x pool)
    (pl-structure? x)
-     (give-values-struct x pool)
+     (set-values-struct x pool)
    :else x))
 
 
 (defn match-to-functor
   "Matches a struct to a functor"
   [struct functor pool]
-  (let [[new-head head-pool] (unify-structures struct (:head functor) pool)]
+  (let [[uni-head head-pool] (unify-structures struct (first (generate-structure (:head functor) {})) pool)
+        new-head (set-values-struct uni-head head-pool)]
     (if (false? new-head)
       [false pool]
       (loop [new-body []
@@ -435,6 +447,6 @@
         (if (empty? old-body)
           [(Functor. new-head new-body) head-pool]
           (let [elem (first old-body)
-                new-elem (give-values-struct elem head-pool)]
+                new-elem (set-values-struct elem head-pool)]
             (recur (conj new-body new-elem)
                    (rest old-body))))))))

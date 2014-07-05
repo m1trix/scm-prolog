@@ -1,14 +1,16 @@
 (use '[clojure.core.match :only (match)])
 
-(ns logic.core)
-
-(use 'logic.term)
-(use 'logic.util)
+(ns logic.core
+  (:use [logic.util]
+        [logic.term]
+        [logic.interpreter]))
 
 (defn -main
   "Entry Point."
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
+
+  (?- [(-->structure :member [:X [1 2 3 4]])])
 
   (let [input (atom "")]
     (while (different? @input "exit")
