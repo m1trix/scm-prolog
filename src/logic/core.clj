@@ -8,8 +8,11 @@
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
-  (print-string (>string< "Joro e mega qk!"))
-  (println)
+  (println-blue (output-term (>variable< :X (>atom< :pesho))))
+  (println-blue (output-term (>variable< :X (>string< "I am so sexy!"))))
+  (println-blue (output-term (>variable< :X (>variable< :Y))))
+  (println-blue (output-term (>variable< :X (>number< 42))))
+
 
   (let [input (atom "")]
     (while (different? @input "exit")

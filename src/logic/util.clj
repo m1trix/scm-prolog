@@ -49,7 +49,12 @@
   [err-msg]
   (println (str "\u001b[31m" err-msg "\u001b[0m")))
 
+
 (defn print-blue
   "Prints a string with a blue color."
   [s]
   (print (str "\u001b[36m" s "\u001b[0m")))
+
+(defn println-blue [s]
+  (print-blue s)
+  (println))
