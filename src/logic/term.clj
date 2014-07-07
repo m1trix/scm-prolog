@@ -9,6 +9,7 @@
 (def unify-term)
 (def generate-term)
 (def output-term)
+(def >term<)
 
 
 
@@ -22,7 +23,12 @@
 (defn >atom< [name]
   (if (a-z? name)
     (PrologAtom. name)
-    (throw (Exception. (str "Illegal PrologAtom name: \"" (keyword->string name) "\"")))))
+    (throw
+     (Exception.
+      (str
+       "Illegal PrologAtom name: \""
+       (keyword->string name)
+       "\"")))))
 
 
 (defn prolog-atom? [atom]
@@ -32,8 +38,9 @@
 (defn unify-atoms
   "Two atoms unify if they are the same."
   [atom-x atom-y pool]
-  (if (same? (:name atom-x)
-             (:name atom-y))
+  (if (same?
+       (:name atom-x)
+       (:name atom-y))
     [atom-x pool]
     [false pool]))
 
@@ -41,7 +48,7 @@
 (defn output-atom
   "Prints the atom to the screen in a specific format."
   [atom]
-  (let [text (subs (str (:name atom)) 1)]
+  (let [text (keyword->string (:name atom))]
     text))
 
 
@@ -131,16 +138,22 @@
 
 
 (defn >variable<
-  ([name] (>variable< name nil []))
-  ([name value] (>variable< name value []))
+  ([name]
+   (>variable< name nil []))
+  ([name value]
+   (>variable< name value []))
   ([name value binds]
    (if (A-Z? name)
      (PrologVariable. name value binds)
-     (throw (Exception. (str "Invalid PrologVariable name: \"" name "\""))))))
+     (throw (Exception.
+             (str "Invalid PrologVariable name: \""
+                  name
+                  "\""))))))
 
 
 (defn prolog-variable? [var]
-  (same? (type var) logic.term.PrologVariable))
+  (same? (type var)
+         logic.term.PrologVariable))
 
 
 (defn unify-variables
@@ -200,6 +213,79 @@
 
 
 
+;; ============================================================================
+;;  Prolog List: [A, B, C]. [A | X]. [_ | 3]. [1 | _].
+;;  List of Prolog Temrs - the elementss can be anything.
+;;
+;;  They have a head [1, 2 and a tail | X], where the head
+;;  contains elemens and the tail is another list (could be and empty one),
+;;  or a variable.
+;;
+(defrecord PrologList [head tail])
+
+
+(defn >list< [elems]
+  (loop [new-head []
+         old-head elems]
+    (if (empty? old-head)
+      (PrologList. new-head [])
+      (let [elem (first old-head)]
+        (if (same? elem :|)
+          (let [last (second elems)]
+            (if (= second [])
+              (PrologList. new-head [])
+              (PrologList. new-head (>term< last))))
+          (recur (conj new-head (>term< elem))
+                 (rest old-head)))))))
+
+
+(defn prolog-list? [list]
+  (same? (type list)
+         logic.term.PrologList))
+
+
+(defn output-list
+  [list]
+  (let [out-tail (if (empty? (:tail list))
+                   ""
+                   (str "|"
+                        (output-term (:tail list))))]
+    (loop [out-head "["
+           elems (:head list)]
+      (cond
+       (empty? elems)
+         (str out-head out-tail "]")
+       (empty? (rest elems))
+         (str out-head
+              (output-term (first elems))
+              out-tail
+              "]")
+       :else
+         (recur (str out-head
+                     (output-term (first elems))
+                     ",")
+                (rest elems))))))
+
+
+
+
+
+
+(defn >term<
+  "Creates a term from the input."
+  [inp]
+  (cond
+   (number? inp)
+     (>number< inp)
+   (vector? inp)
+     (>list< inp)
+   (same? :_ inp)
+     (>variable< (keyword (gensym)))
+   (a-z? inp)
+     (>atom< inp)
+   (A-Z? inp)
+     (>variable< inp)))
+
 
 (defn output-term
   [term]
@@ -211,7 +297,9 @@
    (prolog-string? term)
      (output-string term)
    (prolog-variable? term)
-     (output-variable term)))
+     (output-variable term)
+   (prolog-list? term)
+     (output-list term)))
 
 
 

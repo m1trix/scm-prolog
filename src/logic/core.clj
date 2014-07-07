@@ -12,6 +12,7 @@
   (println-blue (output-term (>variable< :X (>string< "I am so sexy!"))))
   (println-blue (output-term (>variable< :X (>variable< :Y))))
   (println-blue (output-term (>variable< :X (>number< 42))))
+  (println-blue (output-term (>variable< :X (>list< [1 :pesho :Y :| [:Z :ivo :| ["gosho" :| []]]]))))
 
 
   (let [[name pool] (unify-variables
