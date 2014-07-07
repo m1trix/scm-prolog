@@ -14,6 +14,12 @@
   (println-blue (output-term (>variable< :X (>number< 42))))
 
 
+  (let [[name pool] (unify-variables
+                     (>variable< :X)
+                     (>variable< :Y)
+                     {})]
+    (print-blue(output-term name)))
+
   (let [input (atom "")]
     (while (different? @input "exit")
       (do

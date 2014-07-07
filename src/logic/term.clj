@@ -143,6 +143,50 @@
   (same? (type var) logic.term.PrologVariable))
 
 
+(defn unify-variables
+  "Two variables unify by agreeing to 'share' bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
+  [var-x var-y pool]
+  (cond
+
+   (not (prolog-variable? var-x))
+     (throw
+      (Exception.
+       (str
+        (output-term var-x)
+        " is not a PrologVariable!")))
+
+   (not (prolog-variable? var-y))
+     (throw
+      (Exception.
+       (str
+        (output-term var-y)
+        " is not a PrologVariable!")))
+
+   :else
+   (let [new-y
+         (>variable<
+          (:name var-y)
+          nil
+          (conj
+           (:binds var-y)
+           (:name var-x)))
+
+         new-x
+         (>variable<
+          (:name var-x)
+          new-y
+          (:binds
+           var-x
+           (:name var-y)))
+
+         new-pool
+         (assoc pool
+           (:name new-x) new-x
+           (:name new-y) new-y)]
+
+     [new-y new-pool])))
+
+
 (defn output-variable
   "Prints the variable to the screen in a specific format."
   [var]
@@ -153,7 +197,6 @@
            " = "
            (output-term (:value var))))
     (throw (Exception. (str "Trying to print a " (type var) " like a PrologVariable.")))))
-
 
 
 
@@ -169,3 +212,6 @@
      (output-string term)
    (prolog-variable? term)
      (output-variable term)))
+
+
+
