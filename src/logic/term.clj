@@ -6,7 +6,7 @@
   [:require [logic.util :refer :all]])
 
 
-(def unify-term)
+(def unify-terms)
 (def generate-term)
 (def output-term)
 (def >term<)
@@ -231,7 +231,7 @@
       (PrologList. new-head [])
       (let [elem (first old-head)]
         (if (same? elem :|)
-          (let [last (second elems)]
+          (let [last (second old-head)]
             (if (= second [])
               (PrologList. new-head [])
               (PrologList. new-head (>term< last))))
@@ -244,11 +244,88 @@
          logic.term.PrologList))
 
 
+(defn unify-tails
+  "Unifies the tails of two PrologLists"
+  [tail-x tail-y pool]
+  (cond
+
+   (and (same? tail-x [])
+        (same? tail-y []))
+     [[] pool]
+
+   (same? tail-x [])
+     (if (prolog-variable? tail-y)
+       (unify-terms tail-y (>list< []) pool)
+       [false pool])
+
+   (same? tail-y [])
+     (if (prolog-variable? tail-x)
+       (unify-terms tail-x (>list< []) pool))
+
+   :else
+     (unify-terms tail-x tail-y pool)))
+
+
+(defn unify-lists
+  "Two lists unify if their initial elements unify, and the lists which remain after removing both initial elements unify."
+  [list-x list-y pool]
+  (loop [new-head []
+         head-x (:head list-x)
+         head-y (:head list-y)
+         new-pool pool]
+    (cond
+
+     ;; Both lists heads are empty => unifying the tails.
+     (and (empty? head-x)
+          (empty? head-y))
+       (let [[new-tail final-pool]
+             (unify-tails
+              (:tail list-x)
+              (:tail list-y)
+              new-pool)]
+         (if (false? new-tail)
+           [false pool]
+           [(PrologList. new-head new-tail) final-pool]))
+
+     ;; List-x head is empty => matching it's tail with the rest of list-y.
+     (empty? head-x)
+       (let [rest-y (PrologList. head-y (:tail list-y))
+             [new-tail final-pool] (unify-tails (:tail list-x)
+                                                rest-y
+                                                new-pool)]
+         (if (false? new-tail)
+           [false pool]
+           [(PrologList. new-head new-tail) final-pool]))
+
+     ;; List-y head is empty => matching it's tail with the rest of list-x.
+     (empty? head-y)
+       (let [rest-x (PrologList. head-x (:tail list-x))
+             [new-tail final-pool] (unify-tails (:tail list-y)
+                                                 rest-x
+                                                 new-pool)]
+         (if (false? new-tail)
+           [false pool]
+           [(PrologList. new-head new-tail) final-pool]))
+
+     :else
+       (let [[new-elem newer-pool] (unify-terms
+                                     (first head-x)
+                                     (first head-y)
+                                     new-pool)]
+         (if (false? new-elem)
+           [false pool]
+           (recur (conj new-head new-elem)
+                  (vec (rest head-x))
+                  (vec (rest head-y))
+                  newer-pool))))))
+
+
 (defn output-list
+  "Makes a string, that represents the PrologList in it's output format."
   [list]
   (let [out-tail (if (empty? (:tail list))
                    ""
-                   (str "|"
+                   (str "| "
                         (output-term (:tail list))))]
     (loop [out-head "["
            elems (:head list)]
@@ -270,6 +347,54 @@
 
 
 
+(defn evaluate-variable
+  [var term pool]
+  (if (nil? (:value var))
+    (let [new-var (>variable<
+                   (:name var)
+                   term
+                   #{})]
+      (loop [new-pool pool
+             vars (:binds var)]
+        (if (empty? vars)
+          [term (assoc new-pool
+                     (:name var)
+                     new-var)]
+          (let [[_ newer-pool] (evaluate-variable
+                                (first vars)
+                                term
+                                new-pool)]
+            (recur newer-pool
+                   (dissoc vars (first vars)))))))
+    [false pool]))
+
+
+
+
+
+(defn unify-terms
+  [term-x term-y pool]
+  (cond
+   (and (prolog-variable? term-x)
+        (prolog-variable? term-y))
+     (unify-variables term-x term-y pool)
+   (prolog-variable? term-x)
+     (evaluate-variable term-x term-y pool)
+   (prolog-variable? term-y)
+     (evaluate-variable term-y term-x pool)
+   (different? (type term-x)
+               (type term-y))
+     [false pool]
+   (prolog-atom? term-x)
+     (unify-atoms term-x term-y pool)
+   (prolog-number? term-x)
+     (unify-numbers term-x term-y pool)
+   (prolog-string? term-x)
+     (unify-strings term-x term-y pool)
+   (prolog-list? term-x)
+     (unify-lists term-x term-y pool)
+  ))
+
 
 (defn >term<
   "Creates a term from the input."
@@ -279,6 +404,8 @@
      (>number< inp)
    (vector? inp)
      (>list< inp)
+   (string? inp)
+     (>string< inp)
    (same? :_ inp)
      (>variable< (keyword (gensym)))
    (a-z? inp)
