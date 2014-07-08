@@ -134,21 +134,17 @@
 ;;  this Variable gets evaluated, all other Variables that are bound to it, also are evaluated
 ;;  with the same value.
 ;;
-(defrecord PrologVariable [name value binds])
+(defrecord PrologVariable [name])
 
 
 (defn >variable<
-  ([name]
-   (>variable< name nil []))
-  ([name value]
-   (>variable< name value []))
-  ([name value binds]
-   (if (A-Z? name)
-     (PrologVariable. name value binds)
-     (throw (Exception.
-             (str "Invalid PrologVariable name: \""
-                  name
-                  "\""))))))
+  [name]
+  (if (A-Z? name)
+    (PrologVariable. name)
+    (throw (Exception.
+            (str "Invalid PrologVariable name: \""
+                 name
+                 "\"")))))
 
 
 (defn prolog-variable? [var]
@@ -156,60 +152,77 @@
          logic.term.PrologVariable))
 
 
+(defn evaluate-many
+  "Evaluates all variables from a given set of names, with the value of a given term. Only the new pool is returned."
+  [vars term pool]
+  (loop [new-pool pool
+         others vars]
+    (if (empty? others)
+      new-pool
+      (let [name (first others)
+            newer-pool (evaluate-many (name new-pool)
+                                      term
+                                      new-pool)]
+        (recur (assoc newer-pool
+                 name term)
+               (disj others name))))))
+
+
+(defn evaluate-variable
+  [var term pool]
+  (let [name (:name var)]
+    (cond
+     (set? (name pool))
+       (let [new-pool (evaluate-many (name pool) term pool)]
+         [term (assoc new-pool name term)]))))
+
+
 (defn unify-variables
   "Two variables unify by agreeing to 'share' bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
   [var-x var-y pool]
-  (cond
+  (let [name-x (:name var-x)
+        name-y (:name var-y)]
+    (cond
 
-   (not (prolog-variable? var-x))
-     (throw
-      (Exception.
-       (str
-        (output-term var-x)
-        " is not a PrologVariable!")))
+     ;; Both are not evaluated => they get bound to one another.
+     (and (set? (name-x pool))
+          (set? (name-y pool)))
+       (let [new-x (conj (name-x pool) name-y)
+             new-y (conj (name-y pool) name-x)]
+         [(>variable< name-y) (assoc pool
+                                name-x new-x
+                                name-y new-y)])
 
-   (not (prolog-variable? var-y))
-     (throw
-      (Exception.
-       (str
-        (output-term var-y)
-        " is not a PrologVariable!")))
+     ;; Only var-x is not evaluated => we evaluate var-x to the value of var-y.
+     (set? (name-x pool))
+       (evaluate-variable var-x
+                          (name-y pool)
+                          pool)
 
-   :else
-   (let [new-y
-         (>variable<
-          (:name var-y)
-          nil
-          (conj
-           (:binds var-y)
-           (:name var-x)))
+     ;; Only var-y is not evaluated => we evaluate var-y to the value of var-x.
+     (set? (name-y pool))
+       (evaluate-variable var-y
+                          (name-x pool)
+                          pool)
 
-         new-x
-         (>variable<
-          (:name var-x)
-          new-y
-          (:binds
-           var-x
-           (:name var-y)))
-
-         new-pool
-         (assoc pool
-           (:name new-x) new-x
-           (:name new-y) new-y)]
-
-     [new-y new-pool])))
+     ;; Both are evaluated => we unify their values.
+     :else
+     (unify-terms (name-x pool)
+                  (name-y pool)
+                  pool))))
 
 
-(defn output-variable
-  "Prints the variable to the screen in a specific format."
-  [var]
-  (if (prolog-variable? var)
-    (if (nil? (:value var))
-      (keyword->string (:name var))
-      (str (keyword->string (:name var))
-           " = "
-           (output-term (:value var))))
-    (throw (Exception. (str "Trying to print a " (type var) " like a PrologVariable.")))))
+
+;; (defn output-variable
+;;   "Prints the variable to the screen in a specific format."
+;;   [var]
+;;   (if (prolog-variable? var)
+;;     (if (nil? (:value var))
+;;       (keyword->string (:name var))
+;;       (str (keyword->string (:name var))
+;;            " = "
+;;            (output-term (:value var))))
+;;     (throw (Exception. (str "Trying to print a " (type var) " like a PrologVariable.")))))
 
 
 
@@ -345,33 +358,6 @@
 
 
 
-
-
-(defn evaluate-variable
-  [var term pool]
-  (if (nil? (:value var))
-    (let [new-var (>variable<
-                   (:name var)
-                   term
-                   #{})]
-      (loop [new-pool pool
-             vars (:binds var)]
-        (if (empty? vars)
-          [term (assoc new-pool
-                     (:name var)
-                     new-var)]
-          (let [[_ newer-pool] (evaluate-variable
-                                (first vars)
-                                term
-                                new-pool)]
-            (recur newer-pool
-                   (dissoc vars (first vars)))))))
-    [false pool]))
-
-
-
-
-
 (defn unify-terms
   [term-x term-y pool]
   (cond
@@ -400,6 +386,8 @@
   "Creates a term from the input."
   [inp]
   (cond
+   (nil? inp)
+     (throw (Exception. "One does not simply create a PrologTerm from a nil."))
    (number? inp)
      (>number< inp)
    (vector? inp)

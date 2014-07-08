@@ -20,8 +20,8 @@
 
 
 (defn keyword->string [key]
-  (subs (str key)
-        1))
+  (subs (str key) 1))
+
 
 (defn a-z?
   "Tells if a keyword begins with a small letter."
