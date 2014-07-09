@@ -465,20 +465,33 @@
 
 
 (defn >conjunct< [list]
-    (PrologConjunct. list))
+  (if (same? :& (first list))
+    (PrologConjunct. (mapv #(>structure< (first %) (second %)) (rest list)))
+    (throw (Exception. "To create a PrologConjunct from a vector, it must start with a :& keyword."))))
 
 (defn >disjunct< [list]
-    (PrologDisjunct. list))
+  (if (same? :$ (first list))
+    (PrologDisjunct. (mapv #(>structure< (first %) (second %)) (rest list)))
+    (throw (Exception. "To create a PrologDisjunct from a vector, it must start with a :$ keyword."))))
+
 
 
 (defn prolog-conjunct? [conjunct]
   (same? (type conjunct)
          logic.term.PrologConjunct))
 
-
-(defn prolog-disjunct? [dusjunct]
+(defn prolog-disjunct? [disjunct]
   (same? (type disjunct)
          logic.term.PrologDisjunct))
+
+
+(defn =conjunct=
+  [conjunct pool]
+  (mapv #(=structure= % pool) (:elems conjunct)))
+
+(defn =disjunct=
+  [disjunct pool]
+  (mapv #(=structure= % pool) (:elems disjunct)))
 
 
 
@@ -488,7 +501,7 @@
 ;;  A Prolog Functor has a head and a body.
 ;;  The head is a Prolog Structure. A functor is defined by it's head.
 ;;  The body is a Prolog Conjunct or a Prolog Disjunct.
-;;  The symbol :- means, "body => head" or "if the body is true, then the head is true."
+;;  The symbol :- is called neck. It means "body => head" or "if the body is true, then the head is true."
 ;;
 
 (defrecord PrologFunctor [head body])
@@ -496,9 +509,7 @@
 
 (defn >functor< [name args body]
   (let [new-head (>structure< name args)
-        new-body (mapv #(>structure< (first %)
-                                     (second %))
-                                     body)]
+        new-body (>term< body)]
     (PrologFunctor. new-head new-body)))
 
 
@@ -508,9 +519,9 @@
 
 
 (defn =functor=
-  "It's a specific evaluation. It returns only the body of the functor."
+  "It's a specific evaluation. It evaluates and returns only the body of the functor."
   [func pool]
-  (mapv #(=structure= % pool) (:body func)))
+  (=term= (:body func)))
 
 
 (defn match-structure-functor
@@ -521,7 +532,6 @@
     (if (false? new-head)
       [false pool]
       [(=functor= func new-pool) new-pool])))
-
 
 
 
@@ -542,6 +552,12 @@
        term
        ((:name term) pool))
 
+   (prolog-conjunct? term)
+     (=conjunct= term)
+
+   (prolog-disjunct? term)
+     (=disjunct= term)
+
    :else
      term))
 
@@ -554,9 +570,9 @@
         (prolog-variable? term-y))
      (unify-variables term-x term-y pool)
    (prolog-variable? term-x)
-     (evaluate-variable term-x term-y pool)
+     (=variable= term-x term-y pool)
    (prolog-variable? term-y)
-     (evaluate-variable term-y term-x pool)
+     (=variable= term-y term-x pool)
    (different? (type term-x)
                (type term-y))
      [false pool]
@@ -581,7 +597,13 @@
    (number? inp)
      (>number< inp)
    (vector? inp)
-     (>list< inp)
+     (cond
+      (same? :& (first inp))
+        (>conjunct< inp)
+      (same? :$ (first inp))
+        (>disjunct< inp)
+      :else
+        (>list< inp))
    (string? inp)
      (>string< inp)
    (same? :_ inp)
@@ -601,8 +623,6 @@
      (output-number term)
    (prolog-string? term)
      (output-string term)
-   (prolog-variable? term)
-     (output-variable term)
    (prolog-list? term)
      (output-list term)))
 
