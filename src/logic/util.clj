@@ -43,6 +43,20 @@
      :else true)))
 
 
+(defn map-with-source
+  [func elems source]
+  (loop [new-elems []
+         old-elems elems
+         new-source source]
+    (if (empty? old-elems)
+      [new-elems new-source]
+      (let [old-elem (first elems)
+            [new-elem newer-source] (func old-elem new-source)]
+        (recur (conj new-elems new-elem)
+               (rest old-elems)
+               newer-source)))))
+
+
 
 (defn print-err
   "Prints the error message in a specific text format"

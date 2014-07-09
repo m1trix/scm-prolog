@@ -213,6 +213,16 @@
                   pool))))
 
 
+(defn generate-variable
+  [var names]
+  (if (nil? ((:name var) names))
+    (let [new-name (keyword (gensym))]
+      [(>variable< new-name) (assoc names
+                               (:name var)
+                               new-name)])
+    [(>variable< ((:name var) names)) names]))
+
+
 
 ;; (defn output-variable
 ;;   "Prints the variable to the screen in a specific format."
@@ -343,6 +353,24 @@
                                     pool)))))
 
 
+(defn generate-list
+  [list names]
+  (loop [new-head []
+         old-head (:head list)
+         new-names names]
+    (if (empty? old-head)
+      (if (same? [] (:tail list))
+        [(PrologList. new-head []) new-names]
+        (let [[new-tail final-names] (generate-term (:tail list) new-names)]
+          [(PrologList. new-head new-tail) final-names]))
+      (let [old-elem (first old-head)
+            [new-elem newest-names] (generate-term old-elem
+                                                   new-names)]
+        (recur (conj new-head new-elem)
+               (rest old-head)
+               newest-names)))))
+
+
 (defn output-list
   "Makes a string, that represents the PrologList in it's output format."
   [list]
@@ -440,6 +468,30 @@
                             new-args)
           new-pool]))))
 
+
+(defn generate-args
+  [args names]
+  (loop [new-args []
+         old-args args
+         new-names names]
+    (if (empty? old-args)
+      [new-args new-names]
+      (let [old-elem (first old-args)
+            [new-elem newest-names] (generate-term old-elem
+                                                   new-names)]
+        (recur (conj new-args new-elem)
+               (rest old-args)
+               newest-names)))))
+
+
+(defn generate-structure
+  [struct names]
+  (let [[new-args new-names] (generate-args (:args struct) names)]
+    [(PrologStructure. (:name struct)
+                      new-args)
+     new-names]))
+
+
 (defn =structure=
   "Replaces all variables of the structure with their values from the pool."
   [struct pool]
@@ -494,6 +546,20 @@
   (mapv #(=structure= % pool) (:elems disjunct)))
 
 
+(defn generate-conjunct
+  [conjunct names]
+  (let [[new-elems new-names] (map-with-source generate-term
+                                               (:elems conjunct)
+                                               names)]
+    [(PrologConjunct. new-elems) new-names]))
+
+(defn generate-disjunct
+  [disjunct names]
+  (let [[new-elems new-names] (map-with-source generate-term
+                                               (:elems disjunct)
+                                               names)]
+    [(PrologDisjunct. new-elems) new-names]))
+
 
 ;; ===============================================================================
 ;;  Prolog Functor: member(A, [_ | X]) :- member(A, X).
@@ -534,6 +600,13 @@
       [(=functor= func new-pool) new-pool])))
 
 
+(defn generate-functor
+  [func names]
+  (let [[new-head new-names] (generate-structure (:head func)
+                                                 names)
+        [new-body final-names] (generate-term (:body func)
+                                              new-names)]
+    [(PrologFunctor. new-head new-body) final-names]))
 
 
 (defn =term=
@@ -560,6 +633,23 @@
 
    :else
      term))
+
+
+(defn generate-term
+  [term names]
+  (cond
+   (prolog-variable? term)
+     (generate-variable term names)
+   (prolog-list? term)
+     (generate-list term names)
+   (prolog-structure? term)
+     (generate-structure term names)
+   (prolog-conjunct? term)
+     (generate-conjunct term names)
+   (prolog-disjunct? term)
+     (generate-disjunct term names)
+   :else
+     [term names]))
 
 
 (defn unify-terms
