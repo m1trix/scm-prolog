@@ -359,9 +359,84 @@
 
 
 
+;; ===========================================================================
+;;  Prolog Structures: cat(tom). member(X, Y).
+;;  Each structure has a name and arguments.
+;;
+(defrecord PrologStructure [name args])
+
+
+(defn >structure-args< [args]
+  (loop [new-args []
+         old-args args]
+    (if (empty? old-args)
+      new-args
+      (let [elem (first old-args)
+            new-elem (>term< elem)]
+        (recur (conj new-args new-elem)
+               (rest old-args))))))
+
+
+(defn >structure< [name args]
+  (if(not (a-z? name))
+    (throw (Exception. (str
+                        "Invalid PrologStructure name: \""
+                        (keyword->string name)
+                        "\"")))
+    (PrologStructure. name (>structure-args< args))))
+
+
+(defn prolog-structure? [struct]
+  (same? (type struct) logic.terms.PrologStructure))
+
+
+(defn unify-args [args-x args-y pool]
+  (loop [new-args []
+         rest-x args-x
+         rest-y args-y
+         new-pool pool]
+    (if (empty? rest-x)
+      [new-args new-pool]
+      (let [elem-x (first rest-x)
+            elem-y (first rest-y)
+            [new-elem newest-pool] (unify-terms elem-x elem-y new-pool)]
+        (if (false? new-elem)
+          [false pool]
+          (recur (conj new-args new-elem)
+                 (rest rest-x)
+                 (rest rest-y)
+                 newest-pool))))))
+
+
+(defn unify-structures
+  [struct-x struct-y pool]
+  (cond
+
+   (different? (:name struct-x)
+               (:name struct-y))
+     [false pool]
+
+   (different? (count (:args struct-x))
+               (count (:args struct-y)))
+     [false pool]
+
+   :else
+     (let [[new-args new-pool] (unify-args (:args struct-x)
+                                           (:args struct-y)
+                                           pool)]
+       (if (false? new-args)
+         [false pool]
+         [(PrologStructure. (:name struct-x)
+                            new-args)
+          new-pool]))))
+
+
+
+
 (defn unify-terms
   [term-x term-y pool]
   (cond
+
    (and (prolog-variable? term-x)
         (prolog-variable? term-y))
      (unify-variables term-x term-y pool)
@@ -379,7 +454,9 @@
    (prolog-string? term-x)
      (unify-strings term-x term-y pool)
    (prolog-list? term-x)
-     (unify-lists term-x term-y pool)))
+     (unify-lists term-x term-y pool)
+   (prolog-structure? term-x)
+     (unify-structures term-x term-y pooll)))
 
 
 (defn >term<
