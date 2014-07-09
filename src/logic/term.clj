@@ -448,32 +448,48 @@
                        new-args)))
 
 
+;; ================================================================================
+;;  Prolog Conjunct: member(X, [1, 2]), member(X, [2, 3]).
+;;  Prolog Disjunct: member(X, [1, 2]); member(X, [2, 3]).
+;;
+;;  A Prolog Conjunct is a vector of Prolog Structures or Prolog Disjuncts.
+;;  No conjunct has a name.
+;;  A conjunct is true if all of it's elements are true.
+;;
+;;  A Prolog Disjunct is a vector or Prolog Structures or Prolog Conjuncts.
+;;  No disjunct has a name.
+;;  A disjunct is true if atleast one of it's elements is true.
+;;
+(defrecord PrologConjunct [elems])
+(defrecord PrologDisjunct [elems])
 
-(defn =term=
-  [term pool]
-  (cond
 
-   (prolog-list? term)
-     (=list= term pool)
+(defn >conjunct< [list]
+    (PrologConjunct. list))
 
-   (prolog-structure? term)
-     (=structure= term pool)
+(defn >disjunct< [list]
+    (PrologDisjunct. list))
 
-   (prolog-variable? term)
-     ;; Is the variable not evaluated?
-     (if (set? ((:name term) pool))
-       term
-       ((:name term) pool))
 
-   :else
-     term))
+(defn prolog-conjunct? [conjunct]
+  (same? (type conjunct)
+         logic.term.PrologConjunct))
 
-(def demostr (unify-terms (>structure< :member [:A [:A :| :_]])
-                          (>structure< :member [:Y [1 2 3]])
-                          {:X #{} :A #{} :Y #{}}))
+
+(defn prolog-disjunct? [dusjunct]
+  (same? (type disjunct)
+         logic.term.PrologDisjunct))
+
 
 
 ;; ===============================================================================
+;;  Prolog Functor: member(A, [_ | X]) :- member(A, X).
+;;
+;;  A Prolog Functor has a head and a body.
+;;  The head is a Prolog Structure. A functor is defined by it's head.
+;;  The body is a Prolog Conjunct or a Prolog Disjunct.
+;;  The symbol :- means, "body => head" or "if the body is true, then the head is true."
+;;
 
 (defrecord PrologFunctor [head body])
 
@@ -507,6 +523,27 @@
       [(=functor= func new-pool) new-pool])))
 
 
+
+
+
+(defn =term=
+  [term pool]
+  (cond
+
+   (prolog-list? term)
+     (=list= term pool)
+
+   (prolog-structure? term)
+     (=structure= term pool)
+
+   (prolog-variable? term)
+     ;; Is the variable not evaluated?
+     (if (set? ((:name term) pool))
+       term
+       ((:name term) pool))
+
+   :else
+     term))
 
 
 (defn unify-terms
