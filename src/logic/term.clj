@@ -473,6 +473,42 @@
                           {:X #{} :A #{} :Y #{}}))
 
 
+;; ===============================================================================
+
+(defrecord PrologFunctor [head body])
+
+
+(defn >functor< [name args body]
+  (let [new-head (>structure< name args)
+        new-body (mapv #(>structure< (first %)
+                                     (second %))
+                                     body)]
+    (PrologFunctor. new-head new-body)))
+
+
+(defn prolog-functor? [func]
+  (same? (type func)
+         logic.term.PrologFunctor))
+
+
+(defn =functor=
+  "It's a specific evaluation. It returns only the body of the functor."
+  [func pool]
+  (mapv #(=structure= % pool) (:body func)))
+
+
+(defn match-structure-functor
+  [struct func pool]
+  (let [[new-head new-pool] (unify-structures (:head func)
+                                              struct
+                                              pool)]
+    (if (false? new-head)
+      [false pool]
+      [(=functor= func new-pool) new-pool])))
+
+
+
+
 (defn unify-terms
   [term-x term-y pool]
   (cond
