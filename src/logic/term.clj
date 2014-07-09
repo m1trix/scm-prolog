@@ -152,29 +152,29 @@
          logic.term.PrologVariable))
 
 
-(defn evaluate-many
-  "Evaluates all variables from a given set of names, with the value of a given term. Only the new pool is returned."
-  [vars term pool]
-  (loop [new-pool pool
-         others vars]
-    (if (empty? others)
-      new-pool
-      (let [name (first others)
-            newer-pool (evaluate-many (name new-pool)
-                                      term
-                                      new-pool)]
-        (recur (assoc newer-pool
-                 name term)
-               (disj others name))))))
-
-
 (defn evaluate-variable
   [var term pool]
   (let [name (:name var)]
-    (cond
-     (set? (name pool))
-       (let [new-pool (evaluate-many (name pool) term pool)]
-         [term (assoc new-pool name term)]))))
+
+    ;; Checking if the variable is not already evaluated.
+    ;; If in the pool, a set is mapped to the name of the variable,
+    ;; that means the variable is not evaluated.
+    (if (set? (name pool))
+      (loop [new-pool (assoc pool name term)
+             binds (name pool)]
+        (if (empty? binds)
+          [term new-pool]
+          (let [elem (first binds)
+                [_ newest-pool] (evaluate-variable (>variable< elem)
+                                                  term
+                                                  new-pool)]
+            (recur (assoc newest-pool elem term)
+                   (rest binds)))))
+
+      ;; If it's evaluated, nothing changes.
+      ;; That means that it was the first in the chain to be evaluated,
+      ;; or some other variable binded to it evaluated it before that.
+      [term pool])))
 
 
 (defn unify-variables
@@ -187,11 +187,11 @@
      ;; Both are not evaluated => they get bound to one another.
      (and (set? (name-x pool))
           (set? (name-y pool)))
-       (let [new-x (conj (name-x pool) name-y)
-             new-y (conj (name-y pool) name-x)]
-         [(>variable< name-y) (assoc pool
-                                name-x new-x
-                                name-y new-y)])
+       (let [binds-x (conj (name-x pool) name-y)
+             binds-y (conj (name-y pool) name-x)]
+         [var-y (assoc pool
+                   name-x binds-x
+                   name-y binds-y)])
 
      ;; Only var-x is not evaluated => we evaluate var-x to the value of var-y.
      (set? (name-x pool))
@@ -333,6 +333,7 @@
                   newer-pool))))))
 
 
+
 (defn output-list
   "Makes a string, that represents the PrologList in it's output format."
   [list]
@@ -378,8 +379,7 @@
    (prolog-string? term-x)
      (unify-strings term-x term-y pool)
    (prolog-list? term-x)
-     (unify-lists term-x term-y pool)
-  ))
+     (unify-lists term-x term-y pool)))
 
 
 (defn >term<
@@ -387,7 +387,7 @@
   [inp]
   (cond
    (nil? inp)
-     (throw (Exception. "One does not simply create a PrologTerm from a nil."))
+     (throw (Exception. "One does not simply create a PrologTerm from a nil!"))
    (number? inp)
      (>number< inp)
    (vector? inp)
