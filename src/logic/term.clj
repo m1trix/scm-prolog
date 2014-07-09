@@ -9,6 +9,7 @@
 (def unify-terms)
 (def generate-term)
 (def output-term)
+(def =term=)
 (def >term<)
 
 
@@ -152,7 +153,7 @@
          logic.term.PrologVariable))
 
 
-(defn evaluate-variable
+(defn =variable=
   [var term pool]
   (let [name (:name var)]
 
@@ -165,9 +166,9 @@
         (if (empty? binds)
           [term new-pool]
           (let [elem (first binds)
-                [_ newest-pool] (evaluate-variable (>variable< elem)
-                                                  term
-                                                  new-pool)]
+                [_ newest-pool] (=variable= (>variable< elem)
+                                            term
+                                            new-pool)]
             (recur (assoc newest-pool elem term)
                    (rest binds)))))
 
@@ -195,15 +196,15 @@
 
      ;; Only var-x is not evaluated => we evaluate var-x to the value of var-y.
      (set? (name-x pool))
-       (evaluate-variable var-x
-                          (name-y pool)
-                          pool)
+       (=variable= var-x
+                   (name-y pool)
+                   pool)
 
      ;; Only var-y is not evaluated => we evaluate var-y to the value of var-x.
      (set? (name-y pool))
-       (evaluate-variable var-y
-                          (name-x pool)
-                          pool)
+       (=variable= var-y
+                   (name-x pool)
+                   pool)
 
      ;; Both are evaluated => we unify their values.
      :else
@@ -332,6 +333,14 @@
                   (vec (rest head-y))
                   newer-pool))))))
 
+(defn =list=
+  "Replaces all of the list's variables with thieir values from the pool."
+  [list pool]
+  (let [new-head (mapv #(=term= % pool) (:head list))]
+    (if (same? [] (:tail list))
+      (PrologList. new-head [])
+      (PrologList. new-head (=term= (:tail list)
+                                    pool)))))
 
 
 (defn output-list
@@ -387,7 +396,8 @@
 
 
 (defn prolog-structure? [struct]
-  (same? (type struct) logic.terms.PrologStructure))
+  (same? (type struct)
+         logic.term.PrologStructure))
 
 
 (defn unify-args [args-x args-y pool]
@@ -430,7 +440,37 @@
                             new-args)
           new-pool]))))
 
+(defn =structure=
+  "Replaces all variables of the structure with their values from the pool."
+  [struct pool]
+  (loop [new-args (mapv #(=term= % pool) (:args struct))]
+    (PrologStructure. (:name struct)
+                       new-args)))
 
+
+
+(defn =term=
+  [term pool]
+  (cond
+
+   (prolog-list? term)
+     (=list= term pool)
+
+   (prolog-structure? term)
+     (=structure= term pool)
+
+   (prolog-variable? term)
+     ;; Is the variable not evaluated?
+     (if (set? ((:name term) pool))
+       term
+       ((:name term) pool))
+
+   :else
+     term))
+
+(def demostr (unify-terms (>structure< :member [:A [:A :| :_]])
+                          (>structure< :member [:Y [1 2 3]])
+                          {:X #{} :A #{} :Y #{}}))
 
 
 (defn unify-terms
@@ -456,7 +496,7 @@
    (prolog-list? term-x)
      (unify-lists term-x term-y pool)
    (prolog-structure? term-x)
-     (unify-structures term-x term-y pooll)))
+     (unify-structures term-x term-y pool)))
 
 
 (defn >term<
