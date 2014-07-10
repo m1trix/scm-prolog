@@ -224,16 +224,15 @@
 
 
 
-;; (defn output-variable
-;;   "Prints the variable to the screen in a specific format."
-;;   [var]
-;;   (if (prolog-variable? var)
-;;     (if (nil? (:value var))
-;;       (keyword->string (:name var))
-;;       (str (keyword->string (:name var))
-;;            " = "
-;;            (output-term (:value var))))
-;;     (throw (Exception. (str "Trying to print a " (type var) " like a PrologVariable.")))))
+(defn output-variable
+  [v pool]
+  (if (set? (v pool))
+    (if (not-empty (v pool))
+      [(str (keyword->string v)
+            " = "
+            (keyword->string (second (first pool))))
+       (dissoc pool (first (first pool)))])
+    [(output-term (v pool)) pool]))
 
 
 
@@ -567,16 +566,22 @@
 ;;  A Prolog Functor has a head and a body.
 ;;  The head is a Prolog Structure. A functor is defined by it's head.
 ;;  The body is a Prolog Conjunct or a Prolog Disjunct.
-;;  The symbol :- is called neck. It means "body => head" or "if the body is true, then the head is true."
+;;  The symbol :- is called neck. It means "body => head",
+;;  or "if the body is true, then the head is true."
 ;;
 
 (defrecord PrologFunctor [head body])
 
 
 (defn >functor< [name args body]
-  (let [new-head (>structure< name args)
+  (let [new-head
+        (>structure<
+         name
+         args)
         new-body (>term< body)]
-    (PrologFunctor. new-head new-body)))
+    (PrologFunctor.
+     new-head
+     new-body)))
 
 
 (defn prolog-functor? [func]
@@ -587,14 +592,16 @@
 (defn =functor=
   "It's a specific evaluation. It evaluates and returns only the body of the functor."
   [func pool]
-  (=term= (:body func)))
+  (=term= (:body func) pool))
 
 
-(defn match-structure-functor
+(defn match-structure->functor
   [struct func pool]
-  (let [[new-head new-pool] (unify-structures (:head func)
-                                              struct
-                                              pool)]
+  (let [[new-head new-pool]
+        (unify-structures
+         (:head func)
+         struct
+         pool)]
     (if (false? new-head)
       [false pool]
       [(=functor= func new-pool) new-pool])))
@@ -602,14 +609,28 @@
 
 (defn generate-functor
   [func names]
-  (let [[new-head new-names] (generate-structure (:head func)
-                                                 names)
-        [new-body final-names] (generate-term (:body func)
-                                              new-names)]
-    [(PrologFunctor. new-head new-body) final-names]))
+  (let [[new-head new-names]
+          (generate-structure
+           (:head func)
+           names)
+        [new-body final-names]
+          (generate-term
+           (:body func)
+           new-names)]
+    [(PrologFunctor.
+       new-head
+       new-body)
+     final-names]))
+
+
+;; ============================================================================
+;;  Common PrologTerm functions.
+;;  They create a "polymorphism" between PrologTerms.
+;;
 
 
 (defn =term=
+  "Recognizes the type of a term and evaluates it according to it's specific needs."
   [term pool]
   (cond
 
@@ -626,10 +647,10 @@
        ((:name term) pool))
 
    (prolog-conjunct? term)
-     (=conjunct= term)
+     (=conjunct= term pool)
 
    (prolog-disjunct? term)
-     (=disjunct= term)
+     (=disjunct= term pool)
 
    :else
      term))

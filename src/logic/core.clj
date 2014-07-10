@@ -10,11 +10,12 @@
   "Entry Point."
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
-  (let [[name pool] (unify-variables
-                     (>variable< :X)
-                     (>variable< :Y)
-                     {})]
-    (print-blue(output-term name)))
+
+
+  (print-vars {:A :A :B :B}
+              {:A (>atom< :atom)
+               :B (>list< [:betha :| :gamma])})
+
 
   (let [input (atom "")]
     (while (different? @input "halt.")

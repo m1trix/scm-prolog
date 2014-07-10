@@ -43,19 +43,19 @@
      :else true)))
 
 
-(defn map-with-source
-  [func elems source]
-  (loop [new-elems []
-         old-elems elems
-         new-source source]
-    (if (empty? old-elems)
-      [new-elems new-source]
-      (let [old-elem (first elems)
-            [new-elem newer-source] (func old-elem new-source)]
-        (recur (conj new-elems new-elem)
-               (rest old-elems)
-               newer-source)))))
+(defn extract-keys
+  [m v]
+  (->>
+   (map #(vector % v) (keys m))
+   (flatten)
+   (apply hash-map)))
 
+(defn extract-vals
+  [m v]
+  (->>
+   (map #(vector % v) (vals m))
+   (flatten)
+   (apply hash-map)))
 
 
 (defn print-err
