@@ -9,8 +9,11 @@
 ;;
 (def knowledge-base (atom {:member [(>functor< :member [:A [:A :| :_]]
                                                [:&])
-                                    (>functor< :member [:A [:_ :| :X]] [:& [:member [:A :X]]])
-                                 ]}))
+                                    (>functor< :member [:A [:_ :| :X]]
+                                               [:& [:member [:A :X]]])]
+                           :concat [(>functor< :concat [[] :Y :Y] [:&])
+                                    (>functor< :concat [[:A :| :X] :Y [:A :| :Z]]
+                                               [:& [:concat [:X :Y :Z]]])]}))
 
 
 (defn print-vars
@@ -104,12 +107,13 @@
            pool (make-map main-pool #{})
            stack []]
 
+      (println (output-term query))
+
       ;; No more goals
       (if (empty? (:elems query))
         (do
           ;; Printing results.
-          (if (empty? main-pool)
-            (print-green "true")
+          (when-not (empty? main-pool)
             (do
               (print-vars main-pool pool)))
           (flush)
