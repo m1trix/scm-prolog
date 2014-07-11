@@ -3,7 +3,8 @@
 ;; ==========================================================================
 
 (ns logic.term
-  [:require [logic.util :refer :all]])
+  [:require [logic.util :refer :all]
+            [clojure.set]])
 
 
 (def unify-terms)
@@ -11,6 +12,21 @@
 (def output-term)
 (def =term=)
 (def >term<)
+(def get-term-vars)
+
+
+(defn generate-vector
+  [elems pool]
+  (loop [new-elems []
+        old-elems elems
+        new-pool pool]
+    (if (empty? old-elems)
+      [new-elems new-pool]
+      (let [elem (first elems)
+            [new-elem newer-pool] (generate-term elem new-pool)]
+        (recur (conj new-elems new-elem)
+               (rest old-elems)
+               newer-pool)))))
 
 
 
@@ -215,24 +231,27 @@
 
 (defn generate-variable
   [var names]
-  (if (nil? ((:name var) names))
+  (if (same? :_ (:name var))
     (let [new-name (keyword (gensym))]
-      [(>variable< new-name) (assoc names
-                               (:name var)
-                               new-name)])
-    [(>variable< ((:name var) names)) names]))
+      [(>variable< new-name) (assoc names new-name new-name)])
+    (if (nil? ((:name var) names))
+      (let [new-name (keyword (gensym))]
+        [(>variable< new-name) (assoc names
+                                 (:name var)
+                                 new-name)])
+      [(>variable< ((:name var) names)) names])))
 
 
 
 (defn output-variable
-  [v pool]
-  (if (set? (v pool))
-    (if (not-empty (v pool))
-      [(str (keyword->string v)
-            " = "
-            (keyword->string (second (first pool))))
-       (dissoc pool (first (first pool)))])
-    [(output-term (v pool)) pool]))
+  ([var]
+   (keyword->string (:name var)))
+  ([name pool]
+   (if (set? (name pool))
+     [(str (keyword->string name)) pool]
+     [(str (keyword->string name)
+           " = "
+           (output-term (name pool)))])))
 
 
 
@@ -287,6 +306,13 @@
 
    :else
      (unify-terms tail-x tail-y pool)))
+
+(defn get-list-vars
+  [list]
+  (let [head-vars (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:head list))]
+    (if (same? [] (:tail list))
+      head-vars
+      (clojure.set/union head-vars (get-term-vars (:tail list))))))
 
 
 (defn unify-lists
@@ -499,6 +525,25 @@
                        new-args)))
 
 
+(defn output-structure
+  [struct]
+  (loop [out (str (keyword->string (:name struct))
+                  "(")
+         elems (:args struct)]
+    (if (empty? (rest elems))
+      (str out
+           (output-term (first elems))
+           ")")
+      (let [out-elem (output-term (first elems))]
+        (recur (str out out-elem ", ")
+               (rest elems))))))
+
+
+(defn get-structure-vars
+  [struct]
+  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:args struct)))
+
+
 ;; ================================================================================
 ;;  Prolog Conjunct: member(X, [1, 2]), member(X, [2, 3]).
 ;;  Prolog Disjunct: member(X, [1, 2]); member(X, [2, 3]).
@@ -547,17 +592,37 @@
 
 (defn generate-conjunct
   [conjunct names]
-  (let [[new-elems new-names] (map-with-source generate-term
-                                               (:elems conjunct)
+  (let [[new-elems new-names] (generate-vector (:elems conjunct)
                                                names)]
     [(PrologConjunct. new-elems) new-names]))
 
 (defn generate-disjunct
   [disjunct names]
-  (let [[new-elems new-names] (map-with-source generate-term
-                                               (:elems disjunct)
+  (let [[new-elems new-names] (generate-vector (:elems disjunct)
                                                names)]
     [(PrologDisjunct. new-elems) new-names]))
+
+
+(defn get-conjunct-vars
+  [conjunct]
+  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:elems conjunct)))
+
+(defn get-disjunct-vars
+  [disjunct]
+  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:elems disjunct)))
+
+
+(defn output-conjunct
+  [conjunct]
+  (loop [out "("
+         elems (:elems conjunct)]
+    (if (empty? (rest elems))
+      (str out
+           (output-term (first elems))
+           ")")
+      (let [out-elem (output-term (first elems))]
+        (recur (str out out-elem ", ")
+               (rest elems))))))
 
 
 ;; ===============================================================================
@@ -718,7 +783,7 @@
    (string? inp)
      (>string< inp)
    (same? :_ inp)
-     (>variable< (keyword (gensym)))
+     (PrologVariable. :_)
    (a-z? inp)
      (>atom< inp)
    (A-Z? inp)
@@ -728,6 +793,8 @@
 (defn output-term
   [term]
   (cond
+   (prolog-variable? term)
+     (output-variable term)
    (prolog-atom? term)
      (output-atom term)
    (prolog-number? term)
@@ -735,7 +802,26 @@
    (prolog-string? term)
      (output-string term)
    (prolog-list? term)
-     (output-list term)))
+     (output-list term)
+   (prolog-structure? term)
+     (output-structure term)
+   (prolog-conjunct? term)
+     (output-conjunct term)))
+
+
+(defn get-term-vars
+  [term]
+  (cond
+   (prolog-variable? term)
+     #{(:name term)}
+   (prolog-list? term)
+     (get-list-vars term)
+   (prolog-structure? term)
+     (get-structure-vars term)
+   (prolog-conjunct? term)
+     (get-conjunct-vars term)
+   (prolog-disjunct? term)
+     (get-disjunct-vars term)))
 
 
 

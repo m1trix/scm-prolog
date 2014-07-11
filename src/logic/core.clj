@@ -12,9 +12,9 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (print-vars {:A :A :B :B}
-              {:A (>atom< :atom)
-               :B (>list< [:betha :| :gamma])})
+  (?- (>conjunct< [:& [:member [:A [1 2 3 4]]]]))
+
+  (?- (>conjunct< [:& [:member [3 [1 2 3 4]]]]))
 
 
   (let [input (atom "")]

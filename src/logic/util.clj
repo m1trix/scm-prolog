@@ -13,6 +13,12 @@
   (= X Y))
 
 
+(defn make-map
+  "Makes a map from a given vector of keys by putting the same value to all ot them."
+  [elems value]
+  (reduce #(assoc %1 %2 value) {} elems))
+
+
 (defn arity
   "Tells the arity of a PL-Struct, even though it uses it as a map."
   [A]
@@ -69,6 +75,18 @@
   [s]
   (print (str "\u001b[36m" s "\u001b[0m")))
 
+
+(defn print-green
+  "Prints a string with a green color."
+  [s]
+  (print (str "\u001b[32m" s "\u001b[0m")))
+
+
+
 (defn println-blue [s]
   (print-blue s)
+  (println))
+
+(defn println-green [s]
+  (print-green s)
   (println))

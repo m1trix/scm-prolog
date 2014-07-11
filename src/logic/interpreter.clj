@@ -9,26 +9,21 @@
 ;;
 (def knowledge-base (atom {:member [(>functor< :member [:A [:A :| :_]]
                                                [:&])
-                                  ;;  (>functor< :member [:A [:_ :| :X]] [:& [:member [:A :X]]])
+                                    (>functor< :member [:A [:_ :| :X]] [:& [:member [:A :X]]])
                                  ]}))
 
 
 (defn print-vars
   [main-pool work-pool]
-  (loop [vals main-pool
-         new-pool work-pool]
-    (if (empty? (rest vals))
-      (let [[out pool] (output-variable
-                        (first vals)
-                        new-pool)]
-        (print-blue out))
-      (let [[out pool] (output-variable
-                        (first vals)
-                        new-pool)]
+  (loop [vars main-pool
+         pool work-pool]
+    (if (empty? (rest vars))
+      (print-blue (first (output-variable (first vars) pool)))
+      (let [[out new-pool] (output-variable (first vars) pool)]
         (print-blue out)
         (print ", ")
-        (recur (disj vals (first vals))
-               pool)))))
+        (recur (rest vars)
+               new-pool)))))
 
 
 (def match-term)
@@ -40,20 +35,12 @@
   [conjunct pool]
   (let [query (:elems conjunct)
         goal (first query)
-        [new-goals new-pool stack-frame] (match-term goal pool)]
+        [new-goals new-pool stack-frame] (match-term goal pool)
+        new-stack-frame (mapv #(vector (->PrologConjunct (concat (first %) (rest query))) (second %)) stack-frame)]
     (if (false? new-goals)
       [false pool []]
-      [(->PrologConjunct (concat new-goals (rest query))) new-pool stack-frame])))
-
-
-(match-conjunct (>conjunct< [:& [:member [:X [1 2]]]
-                                [:member [:X [2 3]]]])
-                {:X #{}})
-
-(defn make-map
-  "Makes a map from a given vector of keys by putting the same value to all ot them."
-  [elems value]
-  (reduce #(assoc %1 %2 value) {} elems))
+      [(->PrologConjunct (concat new-goals (rest query))) new-pool new-stack-frame]
+      )))
 
 
 (defn match-structure
@@ -63,14 +50,17 @@
                  ;; Generating all new functors.
                  (map #(generate-functor % {})
                       ((:name struct) @knowledge-base))
+
                  ;; Creating local variable pools for each one.
                  (map #(vector (first %) (make-map (vals (second %)) #{})))
+
+                 ;; Merging the variable pools.
+                 (mapv #(vector (first %) (merge pool (second %))))
                  ;; Matching the structure to each one.
                  (map #(match-structure->functor struct (first %) (second %)))
                  ;; Removing those who failed to match.
                  (filter #(different? false (first %)))
-                 ;; Merging the variable pools.
-                 (mapv #(vector (first %) (merge pool (second %)))))]
+                 )]
     (if (empty? matches)
       [false pool []]
       (let [[top-match top-pool] (first matches)]
@@ -87,15 +77,60 @@
    (prolog-structure? term)
      (match-structure term pool)))
 
-(defn interpret [input-query])
 
 
-(defn ?-
-  "A function that is used by the UI to interpret user queries."
-  [query]
-  (if (empty? query)
-    (print-err "Empty query!")
-    (interpret query)))
+(defn backtrack
+  [stack]
+  (let [prev-states (peek stack)
+        [prev-query prev-pool] (first prev-states)
+        next-states (rest prev-states)]
+    (if (empty? next-states)
+      [prev-query prev-pool (pop stack)]
+      [prev-query prev-pool (conj (pop stack) next-states)])))
 
 
+
+(defn user-wants-more?
+  []
+  (let [sym (read-line)]
+    (if (= sym ";")
+      true
+      false)))
+
+
+(defn ?- [input-query]
+  (let [main-pool (get-term-vars input-query)]
+    (loop [query input-query
+           pool (make-map main-pool #{})
+           stack []]
+
+      ;; No more goals
+      (if (empty? (:elems query))
+        (do
+          ;; Printing results.
+          (if (empty? main-pool)
+            (print-green "true")
+            (do
+              (print-vars main-pool pool)))
+          (flush)
+          (if (empty? stack)
+            ;; If the stack is empty, there are no more solutions.
+            (println ".\n")
+            (when (user-wants-more?)
+              (let [[prev-query prev-pool new-stack] (backtrack stack)]
+                  (recur prev-query
+                         prev-pool
+                         new-stack)))))
+        (do
+          (let [[new-query new-pool stack-frame] (match-term query pool)]
+            (if (false? new-query)
+              (if (empty? stack)
+                (print-err "false.\n")
+                (let [[prev-query prev-pool new-stack] (backtrack stack)]
+                  (recur prev-query
+                         prev-pool
+                         new-stack)))
+              (if (empty? stack-frame)
+                (recur new-query new-pool stack)
+                (recur new-query new-pool (conj stack stack-frame))))))))))
 
