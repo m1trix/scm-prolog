@@ -583,11 +583,11 @@
 
 (defn =conjunct=
   [conjunct pool]
-  (mapv #(=structure= % pool) (:elems conjunct)))
+  (PrologConjunct. (mapv #(=structure= % pool) (:elems conjunct))))
 
 (defn =disjunct=
   [disjunct pool]
-  (mapv #(=structure= % pool) (:elems disjunct)))
+  (PrologDisjunct. (mapv #(=structure= % pool) (:elems disjunct))))
 
 
 (defn generate-conjunct

@@ -25,6 +25,13 @@
   (count (:args A)))
 
 
+(defn push
+  [vec elem]
+  (if (same? elem [])
+    vec
+    (conj vec elem)))
+
+
 (defn keyword->string [key]
   (subs (str key) 1))
 
