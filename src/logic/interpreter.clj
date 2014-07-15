@@ -29,6 +29,28 @@
                new-pool)))))
 
 
+(defn output-pool [input-pool]
+  (loop [out "{"
+         pool input-pool]
+    (if (empty? pool)
+      (str out "}")
+      (let [elem (first pool)]
+        (if (set? (second elem))
+          (recur (str out
+                      (keyword->string (first elem))
+                      "="
+                      (second elem)
+                      "  ")
+                 (rest pool))
+          (recur (str out
+                      (keyword->string (first elem))
+                      "="
+                      (output-term (second elem))
+                      "  ")
+
+                 (rest pool)))))))
+
+
 (defn merge-queries
   [query-x query-y]
   (cond
@@ -152,7 +174,9 @@
            stack []]
 
       (println "Query: " (output-term query))
+      (println "Pool: " (output-pool pool))
       (println "Stack: " (mapv #(output-term (first %)) stack))
+      (println)
 
       (if (empty? (:elems query))
         (do
@@ -168,11 +192,11 @@
                 (recur prev-query prev-pool prev-stack)))))
         (let [[new-query new-pool new-stack] (match-query query pool stack)]
           (if (false? new-query)
-            false
+            (println-red "false.\n")
             (recur new-query
                    new-pool
                    new-stack)))))))
 
 
 
-(?- (>conjunct< [:& [:member [:O [1 2]]]]))
+(?- (>conjunct< [:& [:member [:O [1 2 3 4 5 :atom]]]]))

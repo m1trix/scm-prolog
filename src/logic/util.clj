@@ -71,7 +71,7 @@
    (apply hash-map)))
 
 
-(defn print-err
+(defn print-red
   "Prints the error message in a specific text format"
   [err-msg]
   (println (str "\u001b[31m" err-msg "\u001b[0m")))
@@ -96,4 +96,8 @@
 
 (defn println-green [s]
   (print-green s)
+  (println))
+
+(defn println-red [s]
+  (print-red s)
   (println))
