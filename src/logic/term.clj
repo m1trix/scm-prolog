@@ -183,9 +183,9 @@
 (defn =variable=
   ([var pool]
    (let [name (:name var)]
-     (if (set? (name var))
+     (if (set? (name pool))
        var
-       (name pool))))
+       (=term= (name pool) pool))))
   ([var term pool]
    (let [name (:name var)]
      (if (set? (name pool))
@@ -598,11 +598,11 @@
 
 (defn =conjunct=
   [conjunct pool]
-  (PrologConjunct. (mapv #(=structure= % pool) (:elems conjunct))))
+  (PrologConjunct. (mapv #(=term= % pool) (:elems conjunct))))
 
 (defn =disjunct=
   [disjunct pool]
-  (PrologDisjunct. (mapv #(=structure= % pool) (:elems disjunct))))
+  (PrologDisjunct. (mapv #(=term= % pool) (:elems disjunct))))
 
 
 (defn generate-conjunct
@@ -721,7 +721,7 @@
      (=structure= term pool)
 
    (prolog-variable? term)
-     (=variable= term ((:name term) pool) pool)
+     (=variable= term pool)
 
    (prolog-conjunct? term)
      (=conjunct= term pool)
@@ -818,7 +818,9 @@
    (prolog-structure? term)
      (output-structure term)
    (prolog-conjunct? term)
-     (output-conjunct term)))
+     (output-conjunct term)
+   :else
+     (str "\"" term "\"")))
 
 
 (defn get-term-vars
@@ -834,6 +836,3 @@
      (get-conjunct-vars term)
    (prolog-disjunct? term)
      (get-disjunct-vars term)))
-
-
-

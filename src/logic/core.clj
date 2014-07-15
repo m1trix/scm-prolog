@@ -12,7 +12,8 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (?- (>conjunct< [:& [:concat [:Z :Y [1 2 3 4 5]]]]))
+  (?- (>conjunct< [:& [:member [:I [1 2 3 4 5]]]]))
+  (?- (>conjunct< [:& [:concat [:O :R [1 2 3 4 5]]]]))
 
 
   (let [input (atom "")]

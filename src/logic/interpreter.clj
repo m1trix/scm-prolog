@@ -136,6 +136,36 @@
       false)))
 
 
+
+(defn =pool=
+  [input-pool]
+  (loop [vars (mapv >variable< (keys input-pool))
+         pool input-pool]
+    (if (empty? vars)
+      pool
+      (let [var (first vars)
+            value (=variable= var pool)]
+        (recur (rest vars)
+               (assoc pool
+                 (:name var)
+                 value))))))
+
+(defn cut-pool
+  [main-pool second-pool]
+  (->>
+   (filter #(or ((first %) main-pool)
+                (set? (second %))) second-pool)
+   (reduce #(assoc
+              %1
+              (first %2)
+              (second %2))
+           {})))
+
+(defn refactor-pool
+  [main-pool second-pool]
+  (cut-pool main-pool (=pool= second-pool)))
+
+
 (defn backtrack
   [input-stack]
   (loop [stack input-stack]
@@ -150,9 +180,8 @@
           [new-query new-pool (push (pop stack)
                                     new-frame)])))))
 
-
 (defn match-query
-  [input-query input-pool input-stack]
+  [input-query input-pool input-stack main-pool]
   (loop [[query pool frame] (match-term input-query input-pool)
          stack input-stack]
     (if (false? query)
@@ -161,27 +190,13 @@
           [false {} []]
           (recur [prev-query prev-pool (peek prev-stack)]
                  (pop prev-stack))))
-      [query pool (push stack frame)])))
-
-
-(defn refactor
-  [main-pool second-pool]
-  (loop [new-pool {}
-         old-pool second-pool]
-    (if (empty? old-pool)
-      new-pool
-      (let [[name val] (first old-pool)]
-        (if (set? val)
-          (recur (assoc new-pool name val)
-                 (dissoc old-pool name))
-          (let [[new-val pool] (=term= val old-pool)]
-            (if (nil? (name main-pool))
-              (recur new-pool
-                     (dissoc pool name))
-              (recur (assoc new-pool name new-val)
-                     (dissoc pool name)))))))))
-
-
+      (let [[frame-query frame-pool index] frame
+            new-frame [(=term= frame-query frame-pool)
+                       (refactor-pool main-pool frame-pool)
+                       index]]
+        [query
+         (refactor-pool main-pool pool)
+         (push stack new-frame)]))))
 
 (defn ?-
   [input-query]
@@ -192,24 +207,31 @@
 
       (println "Query: " (output-term query))
       (println "Pool: " (output-pool pool))
-      (println "Stack: " (mapv #(output-term (first %)) stack))
+      (println "Stack: " (mapv #(vector (output-term (first %))
+                                        (output-pool (second %))) stack))
       (println)
 
-      (if (empty? (:elems query))
-        (do
-          (if (empty? main-pool)
-            (print-green "true")
-            (print-vars main-pool pool))
-          (flush)
+      (if (false? query)
+        (println-red "false.\n")
 
-          (if (empty? stack)
-            (println ".\n")
-            (if (user-wants-more?)
-              (let [[prev-query prev-pool prev-stack] (backtrack stack)]
-                (recur prev-query prev-pool prev-stack)))))
-        (let [[new-query new-pool new-stack] (match-query query pool stack)]
-          (if (false? new-query)
-            (println-red "false.\n")
-            (recur new-query
-                   (refactor main-pool new-pool)
-                   new-stack)))))))
+        (if (empty? (:elems query))
+          (do
+            (if (empty? main-pool)
+              (print-green "true")
+              (print-vars main-pool pool))
+            (flush)
+
+            (if (empty? stack)
+              (println ".\n")
+              (if (user-wants-more?)
+                (let [[prev-query prev-pool prev-stack] (backtrack stack)]
+                  (recur prev-query
+                         prev-pool
+                         prev-stack))
+                (println))))
+          (let [[new-query new-pool new-stack] (match-query query pool stack main-pool)]
+            (if (false? new-query)
+              (println-red "false.\n")
+              (recur new-query
+                     new-pool
+                     new-stack))))))))
