@@ -66,7 +66,7 @@
       (let [rem-query (->PrologConjunct (vec (rest query)))
             new-conj (=conjunct= rem-query new-pool)
             final-conj (merge-queries new-goals new-conj)
-            new-frame [query pool index]]
+            new-frame [conjunct pool index]]
         [final-conj new-pool new-frame]))))
 
 
@@ -103,16 +103,9 @@
      (prolog-structure? term)
        (match-structure term pool start))))
 
-
-
-(defn backtrack
-  [stack]
-  (let [[prev-query prev-pool index] (peek stack)
-        [new-query new-pool new-frame] (match-term prev-query
-                                                   prev-pool
-                                                   index)]
-    [new-query new-pool (push stack new-frame)]))
-
+(match-term (>conjunct< [:& [:member [:I [1 2]]]])
+            {:I #{}}
+            0)
 
 
 (defn user-wants-more?
@@ -123,46 +116,63 @@
       false)))
 
 
+(defn backtrack
+  [input-stack]
+  (loop [stack input-stack]
+    (if (empty? stack)
+      [false {} []]
+      (let [[prev-query prev-pool index] (peek stack)
+            [new-query new-pool new-frame] (match-term prev-query
+                                                       prev-pool
+                                                       index)]
+        (if (false? new-query)
+          (recur (pop stack))
+          [new-query new-pool (push (pop stack)
+                                    new-frame)])))))
+
+
 (defn match-query
   [input-query input-pool input-stack]
-  (let [[match-query match-pool frame] (match-term input-query input-pool)]
-    (loop [[query pool stack-frame] [match-query match-pool (push input-stack frame)]
-           stack input-stack]
-      (if (false? query)
-        (if (empty? stack)
+  (loop [[query pool frame] (match-term input-query input-pool)
+         stack input-stack]
+    (if (false? query)
+      (let [[prev-query prev-pool prev-stack] (backtrack stack)]
+        (if (false? prev-query)
           [false {} []]
-          (recur (backtrack stack)))
-        [query pool (push stack )]))))
+          (recur [prev-query prev-pool (peek prev-stack)]
+                 (pop prev-stack))))
+      [query pool (push stack frame)])))
 
 
-
-(defn ?- [input-query]
+(defn ?-
+  [input-query]
   (let [main-pool (get-term-vars input-query)]
     (loop [query input-query
            pool (make-map main-pool #{})
            stack []]
 
-      (println (output-term query))
-      (println "STACK: " (mapv #(output-term (first %)) stack))
+      (println "Query: " (output-term query))
+      (println "Stack: " (mapv #(output-term (first %)) stack))
 
-      ;; No more goals
       (if (empty? (:elems query))
         (do
-          ;; Printing results.
-          (when-not (empty? main-pool)
-            (do
-              (print-vars main-pool pool)))
+          (if (empty? main-pool)
+            (print-green "true")
+            (print-vars main-pool pool))
           (flush)
-          (if (empty? stack)
-            ;; If the stack is empty, there are no more solutions.
-            (println ".\n")
-            (when (user-wants-more?)
-              (let [[prev-query prev-pool new-stack] (backtrack stack)]
-                  (recur prev-query
-                         prev-pool
-                         new-stack)))))
-          (let [[new-query new-pool new-stack] (match-query query pool stack)]
-            (if (false? new-query)
-                (print-err "false.\n")
-                (recur new-query new-pool stack-frame)))))))
 
+          (if (empty? stack)
+            (println ".\n")
+            (if (user-wants-more?)
+              (let [[prev-query prev-pool prev-stack] (backtrack stack)]
+                (recur prev-query prev-pool prev-stack)))))
+        (let [[new-query new-pool new-stack] (match-query query pool stack)]
+          (if (false? new-query)
+            false
+            (recur new-query
+                   new-pool
+                   new-stack)))))))
+
+
+
+(?- (>conjunct< [:& [:member [:O [1 2]]]]))

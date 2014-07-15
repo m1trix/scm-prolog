@@ -12,7 +12,7 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (?- (>conjunct< [:& [:concat [:X :Y [1 2 3 4 5]]]]))
+  (?- (>conjunct< [:& [:concat [:Z :Y [1 2 3 4 5]]]]))
 
   (?- (>conjunct< [:& [:member [3 [1 2 3 4]]]]))
 
