@@ -183,7 +183,8 @@
 (defn =variable=
   ([var pool]
    (let [name (:name var)]
-     (if (set? (name pool))
+     (if (or (set? (name pool))
+             (same? name (:name (name pool))))
        var
        (=term= (name pool) pool))))
   ([var term pool]

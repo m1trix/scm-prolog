@@ -137,6 +137,14 @@
 
 
 
+(defn set-value
+  [var pool]
+  (let [name (:name var)]
+    (if (set? (name pool))
+      (name pool)
+      (=variable= var pool))))
+
+
 (defn =pool=
   [input-pool]
   (loop [vars (mapv >variable< (keys input-pool))
@@ -144,11 +152,13 @@
     (if (empty? vars)
       pool
       (let [var (first vars)
-            value (=variable= var pool)]
+            value (set-value var pool)]
         (recur (rest vars)
                (assoc pool
                  (:name var)
                  value))))))
+
+
 
 (defn cut-pool
   [main-pool second-pool]
@@ -163,7 +173,9 @@
 
 (defn refactor-pool
   [main-pool second-pool]
-  (cut-pool main-pool (=pool= second-pool)))
+  (->>
+   (=pool= second-pool)
+   (cut-pool main-pool)))
 
 
 (defn backtrack
