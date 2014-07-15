@@ -181,33 +181,34 @@
 ;;
 
 (defn =variable=
-  [var term pool]
-  (let [name (:name var)]
-    ;; CASE 1:
-    (if (nil? (name pool))
-      [term (assoc pool name term)]
-
-      ;; CASE 2:
-      (let [[new-val new-pool] (unify-terms (name pool)
-                                            term
-                                            pool)]
-        [new-val (assoc new-pool name new-val)]))))
-
-
+  ([var pool]
+   (let [name (:name var)]
+     (if (set? (name var))
+       var
+       (name pool))))
+  ([var term pool]
+   (let [name (:name var)]
+     (if (set? (name pool))
+       (loop [bounds (name pool)
+              new-pool (assoc pool name term)]
+         (if (empty? bounds)
+           [term new-pool]
+           (let [elem-name (first bounds)
+                 [_ newest-pool] (=variable=
+                                  (>variable< elem-name)
+                                  term
+                                  new-pool)]
+             (recur (rest bounds)
+                    newest-pool))))
+       (unify-terms (name pool) term pool)))))
 
 
 ;;
 ;;  PrologVariables unification.
 ;;
 ;;  Case 1: Both are not evaluated.
-;;    In this case, the two variables bind to each other -
-;;    that means that they share values.
-;;    X ~ Y = {:X nil, :Y varX}
-;;      Later, if X gets evaluated: {:X valueX, :Y varX}
-;;      When the pool gets refactored: {:X valueX, :Y valueY}
-;;
-;;      Later, if Y gets evaluated: {:X valueY, :Y valueY}
-;;      It automaticly evaluates X.
+;;    In this case, the two variables are bound to each other -
+;;    whenever one of them get evaluated, the other is evaluated also.
 ;;
 ;;  Case 2: Y is evaluated - then X is evaluated with the value of Y.
 ;;  Case 3: X is evaluated - then Y is evaluated with the value of X.
@@ -220,17 +221,23 @@
   (let [name-x (:name var-x)
         name-y (:name var-y)]
     (cond
+     (same? name-x name-y)
+       [name-x pool]
      ;; CASE 1:
-     (and (nil? (name-x pool))
-          (nil? (name-y pool)))
-       [var-x (assoc pool name-y var-x)]
+     (and (set? (name-x pool))
+          (set? (name-y pool)))
+       (let [binds-x (conj (name-x pool) name-y)
+             binds-y (conj (name-y pool) name-x)]
+         [var-x (assoc pool
+                  name-x binds-x
+                  name-y binds-y)])
 
      ;; CASE 2:
-     (nil? (name-x pool))
+     (set? (name-x pool))
        (=variable= var-x (name-y pool) pool)
 
      ;; CASE 3:
-     (nil? (name-y pool))
+     (set? (name-y pool))
        (=variable= var-y (name-x pool) pool)
 
      ;; CASE 4:
@@ -714,10 +721,7 @@
      (=structure= term pool)
 
    (prolog-variable? term)
-     ;; Is the variable not evaluated?
-     (if (set? ((:name term) pool))
-       term
-       ((:name term) pool))
+     (=variable= term ((:name term) pool) pool)
 
    (prolog-conjunct? term)
      (=conjunct= term pool)
