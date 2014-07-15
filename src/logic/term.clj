@@ -169,77 +169,85 @@
          logic.term.PrologVariable))
 
 
+;;
+;;  PrologVariable evaluation.
+;;
+;;  Case 1: The Variable is unbound.
+;;    It is evaluated with the value.
+;;
+;;  Case 2: The Variable is already evaluated.
+;;    The two values are unified.
+;;    The Variable is evaluated to the result, if it's not false.
+;;
+
 (defn =variable=
   [var term pool]
   (let [name (:name var)]
+    ;; CASE 1:
+    (if (nil? (name pool))
+      [term (assoc pool name term)]
 
-    ;; Checking if the variable is not already evaluated.
-    ;; If in the pool, a set is mapped to the name of the variable,
-    ;; that means the variable is not evaluated.
-    (if (set? (name pool))
-      (loop [new-pool (assoc pool name term)
-             binds (name pool)]
-        (if (empty? binds)
-          [term new-pool]
-          (let [elem (first binds)
-                [_ newest-pool] (=variable= (>variable< elem)
+      ;; CASE 2:
+      (let [[new-val new-pool] (unify-terms (name pool)
                                             term
-                                            new-pool)]
-            (recur (assoc newest-pool elem term)
-                   (rest binds)))))
-
-      ;; If it's evaluated, nothing changes.
-      ;; That means that it was the first in the chain to be evaluated,
-      ;; or some other variable binded to it evaluated it before that.
-      [term pool])))
+                                            pool)]
+        [new-val (assoc new-pool name new-val)]))))
 
 
+
+
+;;
+;;  PrologVariables unification.
+;;
+;;  Case 1: Both are not evaluated.
+;;    In this case, the two variables bind to each other -
+;;    that means that they share values.
+;;    X ~ Y = {:X nil, :Y varX}
+;;      Later, if X gets evaluated: {:X valueX, :Y varX}
+;;      When the pool gets refactored: {:X valueX, :Y valueY}
+;;
+;;      Later, if Y gets evaluated: {:X valueY, :Y valueY}
+;;      It automaticly evaluates X.
+;;
+;;  Case 2: Y is evaluated - then X is evaluated with the value of Y.
+;;  Case 3: X is evaluated - then Y is evaluated with the value of X.
+;;  Case 4: Both are evaluated - their values are unifued.
+;;
 (defn unify-variables
-  "Two variables unify by agreeing to 'share' bindings. This means that if later on, one or the other unifies with another term, then both unify with the term."
+  "If both are not evaluated, it binds them together.
+  If one is evaluated, the other gets it's value."
   [var-x var-y pool]
   (let [name-x (:name var-x)
         name-y (:name var-y)]
     (cond
+     ;; CASE 1:
+     (and (nil? (name-x pool))
+          (nil? (name-y pool)))
+       [var-x (assoc pool name-y var-x)]
 
-     ;; Both are not evaluated => they get bound to one another.
-     (and (set? (name-x pool))
-          (set? (name-y pool)))
-       (let [binds-x (conj (name-x pool) name-y)
-             binds-y (conj (name-y pool) name-x)]
-         [var-y (assoc pool
-                   name-x binds-x
-                   name-y binds-y)])
+     ;; CASE 2:
+     (nil? (name-x pool))
+       (=variable= var-x (name-y pool) pool)
 
-     ;; Only var-x is not evaluated => we evaluate var-x to the value of var-y.
-     (set? (name-x pool))
-       (=variable= var-x
-                   (name-y pool)
-                   pool)
+     ;; CASE 3:
+     (nil? (name-y pool))
+       (=variable= var-y (name-x pool) pool)
 
-     ;; Only var-y is not evaluated => we evaluate var-y to the value of var-x.
-     (set? (name-y pool))
-       (=variable= var-y
-                   (name-x pool)
-                   pool)
-
-     ;; Both are evaluated => we unify their values.
+     ;; CASE 4:
      :else
-     (unify-terms (name-x pool)
-                  (name-y pool)
-                  pool))))
+       (unify-terms (name-x pool)
+                    (name-y pool)
+                    pool))))
 
 
 (defn generate-variable
   [var names]
-  (if (same? :_ (:name var))
+  (if (nil? ((:name var) names))
     (let [new-name (keyword (gensym))]
-      [(>variable< new-name) (assoc names new-name new-name)])
-    (if (nil? ((:name var) names))
-      (let [new-name (keyword (gensym))]
-        [(>variable< new-name) (assoc names
-                                 (:name var)
-                                 new-name)])
-      [(>variable< ((:name var) names)) names])))
+      [(>variable< new-name) (assoc names
+                               (:name var)
+                               new-name)])
+    [(>variable< ((:name var) names)) names]))
 
 
 
@@ -251,7 +259,7 @@
      [(str (keyword->string name)) pool]
      [(str (keyword->string name)
            " = "
-           (output-term (name pool)))])))
+           (output-term (name pool))) pool])))
 
 
 
@@ -783,7 +791,7 @@
    (string? inp)
      (>string< inp)
    (same? :_ inp)
-     (PrologVariable. :_)
+     (PrologVariable. (keyword (gensym)))
    (a-z? inp)
      (>atom< inp)
    (A-Z? inp)

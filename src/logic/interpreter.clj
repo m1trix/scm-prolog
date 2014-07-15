@@ -20,13 +20,14 @@
   [main-pool work-pool]
   (loop [vars main-pool
          pool work-pool]
-    (if (empty? (rest vars))
-      (print-blue (first (output-variable (first vars) pool)))
-      (let [[out new-pool] (output-variable (first vars) pool)]
-        (print-blue out)
-        (print ", ")
-        (recur (rest vars)
-               new-pool)))))
+    (when-not (empty? vars)
+      (if (empty? (rest vars))
+        (print-blue (first (output-variable (first vars) pool)))
+        (let [[out new-pool] (output-variable (first vars) pool)]
+          (print-blue out)
+          (print ", ")
+          (recur (rest vars)
+                 new-pool))))))
 
 
 (defn output-pool [input-pool]
@@ -125,9 +126,6 @@
      (prolog-structure? term)
        (match-structure term pool start))))
 
-(match-term (>conjunct< [:& [:member [:I [1 2]]]])
-            {:I #{}}
-            0)
 
 
 (defn user-wants-more?
@@ -166,6 +164,25 @@
       [query pool (push stack frame)])))
 
 
+(defn refactor
+  [main-pool second-pool]
+  (loop [new-pool {}
+         old-pool second-pool]
+    (if (empty? old-pool)
+      new-pool
+      (let [[name val] (first old-pool)]
+        (if (set? val)
+          (recur (assoc new-pool name val)
+                 (dissoc old-pool name))
+          (let [[new-val pool] (=term= val old-pool)]
+            (if (nil? (name main-pool))
+              (recur new-pool
+                     (dissoc pool name))
+              (recur (assoc new-pool name new-val)
+                     (dissoc pool name)))))))))
+
+
+
 (defn ?-
   [input-query]
   (let [main-pool (get-term-vars input-query)]
@@ -194,9 +211,5 @@
           (if (false? new-query)
             (println-red "false.\n")
             (recur new-query
-                   new-pool
+                   (refactor main-pool new-pool)
                    new-stack)))))))
-
-
-
-(?- (>conjunct< [:& [:member [:O [1 2 3 4 5 :atom]]]]))

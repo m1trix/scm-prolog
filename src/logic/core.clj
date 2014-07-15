@@ -14,8 +14,6 @@
 
   (?- (>conjunct< [:& [:concat [:Z :Y [1 2 3 4 5]]]]))
 
-  (?- (>conjunct< [:& [:member [3 [1 2 3 4]]]]))
-
 
   (let [input (atom "")]
     (while (different? @input "halt.")
