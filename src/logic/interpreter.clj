@@ -24,7 +24,22 @@
 
                            :insert [(>functor< :insert [:A :X [:A :| :X]] [:&])
                                     (>functor< :insert [:A [:B :| :X] [:B :| :Y]]
-                                               [:& [:insert [:A :X :Y]]])]}))
+                                               [:& [:insert [:A :X :Y]]])]
+
+                           :path [(>functor< :path [[:V :E] :S :T [:S :T]]
+                                             [:&
+                                              [:member [[:S :T] :E]]])
+                                  (>functor< :path [[:V :E] :S :T [:S :| :L]]
+                                             [:&
+                                              [:member [:W :V]]
+                                              [:member [[:S :W] :E]]
+                                              [:exclude [:W :V :V1]]
+                                              [:path [[:V1 :E] :W :T :L]]])]
+
+                           :exclude [(>functor< :exclude [:A [:A :| :Z] :Z] [:&])
+                                     (>functor< :exclude [:A [:B :| :Y] [:B :| :Z]]
+                                                [:&
+                                                 [:exclude [:A :Y :Z]]])]}))
 
 
 (defn print-vars

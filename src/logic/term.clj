@@ -331,6 +331,16 @@
       (clojure.set/union head-vars (get-term-vars (:tail list))))))
 
 
+(defn refactor-list
+  [list]
+  (if (prolog-list? (:tail list))
+    (let [new-list (refactor-list (:tail list))]
+      (PrologList. (vec (concat (:head list)
+                                (:head new-list)))
+                   (:tail new-list)))
+    list))
+
+
 (defn unify-lists
   "Two lists unify if their initial elements unify, and the lists which remain after removing both initial elements unify."
   [list-x list-y pool]
@@ -389,9 +399,9 @@
   [list pool]
   (let [new-head (mapv #(=term= % pool) (:head list))]
     (if (same? [] (:tail list))
-      (PrologList. new-head [])
-      (PrologList. new-head (=term= (:tail list)
-                                    pool)))))
+      (refactor-list (PrologList. new-head []))
+      (refactor-list (PrologList. new-head (=term= (:tail list)
+                                    pool))))))
 
 
 (defn generate-list
@@ -432,7 +442,7 @@
        :else
          (recur (str out-head
                      (output-term (first elems))
-                     ",")
+                     ", ")
                 (rest elems))))))
 
 
