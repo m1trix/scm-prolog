@@ -650,6 +650,18 @@
         (recur (str out out-elem ", ")
                (rest elems))))))
 
+(defn output-disjunct
+  [disjunct]
+  (loop [out "("
+         elems (:elems disjunct)]
+    (if (empty? (rest elems))
+      (str out
+           (output-term (first elems))
+           ")")
+      (let [out-elem (output-term (first elems))]
+        (recur (str out out-elem "; ")
+               (rest elems))))))
+
 
 ;; ===============================================================================
 ;;  Prolog Functor: member(A, [_ | X]) :- member(A, X).
@@ -830,6 +842,8 @@
      (output-structure term)
    (prolog-conjunct? term)
      (output-conjunct term)
+   (prolog-disjunct? term)
+     (output-disjunct term)
    :else
      (str "\"" term "\"")))
 

@@ -88,7 +88,9 @@
       (prolog-structure? query-y)
         (->PrologConjunct [query-x query-y])
       (prolog-conjunct? query-y)
-        (->PrologConjunct (concat [query-x] (:elems query-y))))
+        (->PrologConjunct (concat [query-x] (:elems query-y)))
+      (prolog-disjunct? query-y)
+        (->PrologDisjunct (concat [query-x] (:elems query-y))))
    (prolog-conjunct? query-x)
      (cond
       (prolog-structure? query-y)
@@ -96,7 +98,9 @@
                                 query-y))
       (prolog-conjunct? query-y)
         (->PrologConjunct (concat (:elems query-x)
-                                  (:elems query-y))))))
+                                  (:elems query-y)))
+      (prolog-disjunct? query-y)
+        (->PrologDisjunct (concat [query-x] (:elems query-y))))))
 
 
 
@@ -120,13 +124,30 @@
         [final-conj new-pool new-frame]))))
 
 
+(defn match-disjunct
+  [disjunct pool start-index]
+  (loop [query (:elems disjunct)
+         start start-index]
+    (if (empty? query)
+      [false {} []]
+      (if (= start -1)
+        (recur (rest query) 0)
+        (let [goal (first query)
+              [new-goals new-pool [_ _ index]] (match-term goal pool start)]
+          (if (false? new-goals)
+            (recur (rest query) 0)
+            (let [new-frame [(->PrologDisjunct query) pool index]]
+              [new-goals new-pool new-frame])))))))
+
+
+
 (defn match-structure
   "Matches teh strcrute to a functor from the knowledge base."
   [struct pool start]
   (let [name (:name struct)
         all (name @knowledge-base)]
     (if (or (nil? all)
-            (> start (count all)))
+            (= start -1))
       [false {} []]
       (loop [clauses (subvec all start)
              index start]
@@ -138,7 +159,9 @@
             (if (false? new-goals)
               (recur (rest clauses)
                      (inc index))
-              [new-goals new-pool [struct pool (inc index)]])))))))
+              (if (< (inc index) (count all))
+                [new-goals new-pool [struct pool (inc index)]]
+                [new-goals new-pool [struct pool -1]]))))))))
 
 
 (defn match-term
@@ -149,7 +172,9 @@
      (prolog-conjunct? term)
        (match-conjunct term pool start)
      (prolog-structure? term)
-       (match-structure term pool start))))
+       (match-structure term pool start)
+     (prolog-disjunct? term)
+       (match-disjunct term pool start))))
 
 
 
@@ -242,11 +267,12 @@
            pool (make-map main-pool #{})
            stack []]
 
-;;       (println "Query: " (output-term query))
+       (println "Query: " (output-term query))
 ;;       (println "Pool: " (output-pool pool))
-;;       (println "Stack: " (mapv #(vector (output-term (first %))
-;;                                         (output-pool (second %))) stack))
-;;       (println)
+       (println "Stack: " (mapv #(vector (output-term (first %))
+                                         (output-pool (second %))
+                                         (nth % 2)) stack))
+      (println)
 
       (if (false? query)
         (println-red "false.\n")

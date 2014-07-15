@@ -11,7 +11,12 @@
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
-  (?- (>conjunct< [:& [:path [[[1 2 3 4 5] [[1 2] [1 5] [2 4] [4 3] [4 5] [5 2]]] 1 3 :Path]]]))
+
+
+  (?- (->PrologConjunct [(>disjunct< [:$
+                                      [:member [:A [1 2]]]
+                                      [:member [:A [3 4]]]])
+                         (>structure< :member [:A [2 3]])]))
 
 
   (let [input (atom "")]
