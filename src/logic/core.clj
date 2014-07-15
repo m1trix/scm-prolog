@@ -11,10 +11,10 @@
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
-
-  (?- (>conjunct< [:& [:member [:I [1 2 3 4 5]]]]))
-  (?- (>conjunct< [:& [:concat [:O :R [1 2 3 4 5]]]]))
-  (?- (>conjunct< [:& [:member [3 [1 2 3 4]]]]))
+  (?- (>conjunct< [:& [:insert [1 [2 3 4] :Z]]]))
+  (?- (>conjunct< [:& [:perm [[1 2 3 4] :X]]]))
+  (?- (>conjunct< [:& [:insert [1 [2 3 4] :List]]
+                   [:member [:Member :List]]]))
 
 
   (let [input (atom "")]

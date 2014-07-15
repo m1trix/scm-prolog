@@ -22,7 +22,7 @@
         new-pool pool]
     (if (empty? old-elems)
       [new-elems new-pool]
-      (let [elem (first elems)
+      (let [elem (first old-elems)
             [new-elem newer-pool] (generate-term elem new-pool)]
         (recur (conj new-elems new-elem)
                (rest old-elems)

@@ -11,9 +11,20 @@
                                                [:&])
                                     (>functor< :member [:A [:_ :| :X]]
                                                [:& [:member [:A :X]]])]
+
                            :concat [(>functor< :concat [[] :Y :Y] [:&])
                                     (>functor< :concat [[:A :| :X] :Y [:A :| :Z]]
-                                               [:& [:concat [:X :Y :Z]]])]}))
+                                               [:& [:concat [:X :Y :Z]]])]
+
+                           :perm [(>functor< :perm [[:A] [:A]] [:&])
+                                  (>functor< :perm [[:A :| :X] :Z]
+                                             [:&
+                                              [:perm [:X :Y]]
+                                              [:insert [:A :Y :Z]]])]
+
+                           :insert [(>functor< :insert [:A :X [:A :| :X]] [:&])
+                                    (>functor< :insert [:A [:B :| :X] [:B :| :Y]]
+                                               [:& [:insert [:A :X :Y]]])]}))
 
 
 (defn print-vars
@@ -73,6 +84,7 @@
                                   (:elems query-y))))))
 
 
+
 (def match-term)
 
 
@@ -91,8 +103,6 @@
             final-conj (merge-queries new-goals new-conj)
             new-frame [conjunct pool index]]
         [final-conj new-pool new-frame]))))
-
-
 
 
 (defn match-structure
@@ -217,11 +227,11 @@
            pool (make-map main-pool #{})
            stack []]
 
-      (println "Query: " (output-term query))
-      (println "Pool: " (output-pool pool))
-      (println "Stack: " (mapv #(vector (output-term (first %))
-                                        (output-pool (second %))) stack))
-      (println)
+;;       (println "Query: " (output-term query))
+;;       (println "Pool: " (output-pool pool))
+;;       (println "Stack: " (mapv #(vector (output-term (first %))
+;;                                         (output-pool (second %))) stack))
+;;       (println)
 
       (if (false? query)
         (println-red "false.\n")
