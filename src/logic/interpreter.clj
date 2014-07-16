@@ -100,7 +100,16 @@
         (->PrologConjunct (concat (:elems query-x)
                                   (:elems query-y)))
       (prolog-disjunct? query-y)
-        (->PrologDisjunct (concat [query-x] (:elems query-y))))))
+        (->PrologDisjunct (concat [query-x] (:elems query-y))))
+   (prolog-disjunct? query-x)
+     (cond
+      (prolog-structure? query-y)
+        (->PrologDisjunct (conj (:elems query-x) query-y))
+      (prolog-conjunct? query-y)
+        (->PrologConjunct (concat [query-x] (:elems query-y)))
+      (prolog-disjunct? query-y)
+        (->PrologDisjunct (concat (:elems query-x)
+                                  (:elems query-y))))))
 
 
 
@@ -114,13 +123,13 @@
   [conjunct pool start]
   (let [query (:elems conjunct)
         goal (first query)
-        [new-goals new-pool [_ _ index]] (match-term goal pool start)]
+        [new-goals new-pool [frame-goals frame-pool index]] (match-term goal pool start)]
     (if (false? new-goals)
       [false {} []]
       (let [rem-query (->PrologConjunct (vec (rest query)))
             new-conj (=conjunct= rem-query new-pool)
             final-conj (merge-queries new-goals new-conj)
-            new-frame [conjunct pool index]]
+            new-frame [(merge-queries frame-goals rem-query) frame-pool index]]
         [final-conj new-pool new-frame]))))
 
 
@@ -136,9 +145,8 @@
               [new-goals new-pool [_ _ index]] (match-term goal pool start)]
           (if (false? new-goals)
             (recur (rest query) 0)
-            (let [new-frame [(->PrologDisjunct query) pool index]]
+            (let [new-frame [(->PrologDisjunct (vec query)) pool index]]
               [new-goals new-pool new-frame])))))))
-
 
 
 (defn match-structure
@@ -162,6 +170,7 @@
               (if (< (inc index) (count all))
                 [new-goals new-pool [struct pool (inc index)]]
                 [new-goals new-pool [struct pool -1]]))))))))
+
 
 
 (defn match-term
@@ -267,12 +276,12 @@
            pool (make-map main-pool #{})
            stack []]
 
-       (println "Query: " (output-term query))
+;;       (println "Query: " (output-term query))
 ;;       (println "Pool: " (output-pool pool))
-       (println "Stack: " (mapv #(vector (output-term (first %))
-                                         (output-pool (second %))
-                                         (nth % 2)) stack))
-      (println)
+;;       (println "Stack: " (mapv #(vector (output-term (first %))
+;;                                         (output-pool (second %))
+;;                                         (nth % 2)) stack))
+;;       (println)
 
       (if (false? query)
         (println-red "false.\n")

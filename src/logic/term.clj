@@ -726,6 +726,51 @@
      final-names]))
 
 
+;; =============================================================================
+;;  PrologMethod: A + B, X is 42.01 - 0.01.
+;;
+;;
+(defrecord PrologMethod [name args func])
+
+
+(defn >method< [name args func]
+  (let [new-args (mapv >term< args)]
+    (PrologMethod. name new-args func)))
+
+
+(defn prolog-method? [method]
+  (same? (type method)
+         logic.term.PrologMethod))
+
+
+(defn process-method [method]
+  (reduce (:func method) (:args method)))
+
+
+(defn =method= [method pool]
+  (PrologMethod. (:name method)
+                 (mapv #(=term= % pool) (:args method))
+                 (:func method)))
+
+
+(defn generate-method [method names]
+  (PrologMethod. (:name method)
+                 (generate-vector (:args method) names)
+                 (:func method)))
+
+
+(defn output-method [method]
+  (let [args (:args method)
+        name (:name method)]
+    (if (= 2 (count args))
+      (str (output-term (first args))
+           " "
+           (keyword->string name)
+           " "
+           (output-term (second args))))))
+
+
+
 ;; ============================================================================
 ;;  Common PrologTerm functions.
 ;;  They create a "polymorphism" between PrologTerms.
@@ -844,6 +889,8 @@
      (output-conjunct term)
    (prolog-disjunct? term)
      (output-disjunct term)
+   (prolog-method? term)
+     (output-method term)
    :else
      (str "\"" term "\"")))
 
