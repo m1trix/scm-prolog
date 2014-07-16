@@ -454,24 +454,12 @@
 (defrecord PrologStructure [name args])
 
 
-(defn >structure-args< [args]
-  (loop [new-args []
-         old-args args]
-    (if (empty? old-args)
-      new-args
-      (let [elem (first old-args)
-            new-elem (>term< elem)]
-        (recur (conj new-args new-elem)
-               (rest old-args))))))
-
-
-(defn >structure< [name args]
-  (if(not (a-z? name))
-    (throw (Exception. (str
-                        "Invalid PrologStructure name: \""
-                        (keyword->string name)
-                        "\"")))
-    (PrologStructure. name (>structure-args< args))))
+(defn >structure< [[sign name args]]
+  (if (same? sign :#str)
+    (if-not (A-Z? name)
+      (PrologStructure. name (mapv >term< args))
+      (throw (Exception. "PrologStructure name cannot start with a capital letter.")))
+    (throw (Exception. "To create a PrologStructure from a vector, it must start with a :#str keyword."))))
 
 
 (defn prolog-structure? [struct]
@@ -551,11 +539,9 @@
                        new-args)))
 
 
-(defn output-structure
-  [struct]
-  (loop [out (str (keyword->string (:name struct))
-                  "(")
-         elems (:args struct)]
+(defn output-arguments [args]
+  (loop [out "("
+         elems args]
     (if (empty? (rest elems))
       (str out
            (output-term (first elems))
@@ -563,6 +549,12 @@
       (let [out-elem (output-term (first elems))]
         (recur (str out out-elem ", ")
                (rest elems))))))
+
+
+(defn output-structure
+  [struct]
+  (str (keyword->string (:name struct))
+       (output-arguments (:args struct))))
 
 
 (defn get-structure-vars
@@ -586,17 +578,15 @@
 (defrecord PrologDisjunct [elems])
 
 
-(defn >conjunct< [list]
-  (if (same? :& (first list))
-    (PrologConjunct. (mapv #(>structure< (first %) (second %)) (rest list)))
-    (throw (Exception. "To create a PrologConjunct from a vector, it must start with a :& keyword."))))
+(defn >conjunct< [[sign & list]]
+  (if (same? :#con sign)
+    (PrologConjunct. (mapv >term< list))
+    (throw (Exception. "To create a PrologConjunct from a vector, it must start with a :#con keyword."))))
 
-(defn >disjunct< [list]
-  (if (same? :$ (first list))
-    (PrologDisjunct. (mapv #(>structure< (first %) (second %)) (rest list)))
-    (throw (Exception. "To create a PrologDisjunct from a vector, it must start with a :$ keyword."))))
-
-
+(defn >disjunct< [[sign & list]]
+  (if (same? :#dis sign)
+    (PrologDisjunct. (mapv >term< list))
+    (throw (Exception. "To create a PrologDisjunct from a vector, it must start with a :#dis keyword."))))
 
 (defn prolog-conjunct? [conjunct]
   (same? (type conjunct)
@@ -676,15 +666,17 @@
 (defrecord PrologFunctor [head body])
 
 
-(defn >functor< [name args body]
-  (let [new-head
-        (>structure<
-         name
-         args)
-        new-body (>term< body)]
-    (PrologFunctor.
-     new-head
-     new-body)))
+(defn >functor< [[sign [name args body]]]
+  (if (same? sign :#fun)
+    (let [new-head
+          (>structure<
+           name
+           args)
+          new-body (>term< body)]
+      (PrologFunctor.
+       new-head
+       new-body))
+    (throw (Exception. "To create a PrologFunctor from a vector, it must start with :#fun keyword."))))
 
 
 (defn prolog-functor? [func]
@@ -733,18 +725,16 @@
 (defrecord PrologMethod [name args func])
 
 
-(defn >method< [name args func]
-  (let [new-args (mapv >term< args)]
-    (PrologMethod. name new-args func)))
+(defn >method< [[sign name args func]]
+  (if (same? sign :#met)
+    (let [new-args (mapv >term< args)]
+      (PrologMethod. name new-args func))
+    (throw (Exception. "To create PrologMethod from a vector, it must start with :#meth keyword."))))
 
 
 (defn prolog-method? [method]
   (same? (type method)
          logic.term.PrologMethod))
-
-
-(defn process-method [method]
-  (reduce (:func method) (:args method)))
 
 
 (defn =method= [method pool]
@@ -754,9 +744,33 @@
 
 
 (defn generate-method [method names]
-  (PrologMethod. (:name method)
-                 (generate-vector (:args method) names)
-                 (:func method)))
+  (let [[new-args new-pool] (generate-vector (:args method) names)]
+    [(PrologMethod. (:name method)
+                    new-args
+                    (:func method))
+     new-pool]))
+
+
+(defn unify-methods [method-x method-y pool]
+  (if (or (different? (:name method-x)
+                      (:name method-y))
+          (different? (arity method-x)
+                      (arity method-y)))
+    [false pool]
+    (let [[new-args new-pool] (unify-args (:args method-x)
+                                          (:args method-y)
+                                          pool)]
+      (if (false? new-args)
+        [false pool]
+        [(PrologMethod. (:name method-x)
+                        new-args
+                        (:func method-y))
+         new-pool]))))
+
+
+(defn get-method-vars
+  [method]
+  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:args method)))
 
 
 (defn output-method [method]
@@ -767,8 +781,9 @@
            " "
            (keyword->string name)
            " "
-           (output-term (second args))))))
-
+           (output-term (second args)))
+      (str (keyword->string (:name method))
+           (output-arguments (:args method))))))
 
 
 ;; ============================================================================
@@ -797,6 +812,9 @@
    (prolog-disjunct? term)
      (=disjunct= term pool)
 
+   (prolog-method? term)
+     (=method= term pool)
+
    :else
      term))
 
@@ -814,6 +832,8 @@
      (generate-conjunct term names)
    (prolog-disjunct? term)
      (generate-disjunct term names)
+   (prolog-method? term)
+     (generate-method term names)
    :else
      [term names]))
 
@@ -841,7 +861,9 @@
    (prolog-list? term-x)
      (unify-lists term-x term-y pool)
    (prolog-structure? term-x)
-     (unify-structures term-x term-y pool)))
+     (unify-structures term-x term-y pool)
+   (prolog-method? term-x)
+     (unify-methods term-x term-y pool)))
 
 
 (defn >term<
@@ -854,10 +876,16 @@
      (>number< inp)
    (vector? inp)
      (cond
-      (same? :& (first inp))
+      (same? :#con (first inp))
         (>conjunct< inp)
-      (same? :$ (first inp))
+      (same? :#dis (first inp))
         (>disjunct< inp)
+      (same? :#str (first inp))
+        (>structure< inp)
+      (same? :#fun (first inp))
+        (>functor< inp)
+      (same? :#met (first inp))
+        (>method< inp)
       :else
         (>list< inp))
    (string? inp)
@@ -907,4 +935,17 @@
    (prolog-conjunct? term)
      (get-conjunct-vars term)
    (prolog-disjunct? term)
-     (get-disjunct-vars term)))
+     (get-disjunct-vars term)
+   (prolog-method? term)
+     (get-method-vars term)))
+
+
+(defn match-structure->term
+  [struct term pool]
+  (cond
+   (prolog-functor? term)
+     (match-structure->functor struct term pool)
+   :else
+     (throw (Exception. (str "A PrologStructure cannot be matched to a "
+                             (type term)
+                             "!")))))

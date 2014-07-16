@@ -1,45 +1,14 @@
 (ns logic.interpreter
   (:use [logic.util]
-        [logic.term]))
+        [logic.term]
+        [logic.math]))
 
 ;;
 ;;  This is the source of all knowledge.
 ;;  Whatever gets loaded to the program goes here.
 ;;  The interpreter knows only the things that are included in the knowledge-base.
 ;;
-(def knowledge-base (atom {:member [(>functor< :member [:A [:A :| :_]]
-                                               [:&])
-                                    (>functor< :member [:A [:_ :| :X]]
-                                               [:& [:member [:A :X]]])]
-
-                           :concat [(>functor< :concat [[] :Y :Y] [:&])
-                                    (>functor< :concat [[:A :| :X] :Y [:A :| :Z]]
-                                               [:& [:concat [:X :Y :Z]]])]
-
-                           :perm [(>functor< :perm [[:A] [:A]] [:&])
-                                  (>functor< :perm [[:A :| :X] :Z]
-                                             [:&
-                                              [:perm [:X :Y]]
-                                              [:insert [:A :Y :Z]]])]
-
-                           :insert [(>functor< :insert [:A :X [:A :| :X]] [:&])
-                                    (>functor< :insert [:A [:B :| :X] [:B :| :Y]]
-                                               [:& [:insert [:A :X :Y]]])]
-
-                           :path [(>functor< :path [[:V :E] :S :T [:S :T]]
-                                             [:&
-                                              [:member [[:S :T] :E]]])
-                                  (>functor< :path [[:V :E] :S :T [:S :| :L]]
-                                             [:&
-                                              [:member [:W :V]]
-                                              [:member [[:S :W] :E]]
-                                              [:exclude [:W :V :V1]]
-                                              [:path [[:V1 :E] :W :T :L]]])]
-
-                           :exclude [(>functor< :exclude [:A [:A :| :Z] :Z] [:&])
-                                     (>functor< :exclude [:A [:B :| :Y] [:B :| :Z]]
-                                                [:&
-                                                 [:exclude [:A :Y :Z]]])]}))
+(def knowledge-base (atom math-functions))
 
 
 (defn print-vars
@@ -161,9 +130,9 @@
              index start]
         (if (empty? clauses)
           [false {} []]
-          (let [[functor names] (generate-functor (first clauses) {})
+          (let [[term names] (generate-functor (first clauses) {})
                 pool+names (merge pool (make-map (vals names) #{}))
-                [new-goals new-pool] (match-structure->functor struct functor pool+names)]
+                [new-goals new-pool] (match-structure->term struct term pool+names)]
             (if (false? new-goals)
               (recur (rest clauses)
                      (inc index))
@@ -171,6 +140,27 @@
                 [new-goals new-pool [struct pool (inc index)]]
                 [new-goals new-pool [struct pool -1]]))))))))
 
+
+(defn match-method
+  [method pool _]
+  (let [name (:name method)
+        [other names] (generate-method (name @knowledge-base) {})
+        pool-names (merge pool (make-map (vals names) #{}))
+        [new-method new-pool] (unify-methods method other pool-names)]
+    (if (false? new-method)
+      [false {} []]
+      (let [[arg-l arg-r] (:args new-method)
+            new-args [(match-term arg-l new-pool 0)
+                      (match-term arg-r new-pool 0)]
+            ]
+        new-method))))
+
+
+(match-method (>method< [:#met :is [:X
+                                     [:#met :+ [1 2] nil]]
+                                nil])
+              {:X #{}}
+              0)
 
 
 (defn match-term
@@ -183,7 +173,11 @@
      (prolog-structure? term)
        (match-structure term pool start)
      (prolog-disjunct? term)
-       (match-disjunct term pool start))))
+       (match-disjunct term pool start)
+     (prolog-method? term)
+       (match-method term pool start)
+     (prolog-variable? term)
+       [term pool])))
 
 
 
@@ -269,6 +263,7 @@
          (refactor-pool main-pool pool)
          (push stack new-frame)]))))
 
+
 (defn ?-
   [input-query]
   (let [main-pool (get-term-vars input-query)]
@@ -276,12 +271,12 @@
            pool (make-map main-pool #{})
            stack []]
 
-;;       (println "Query: " (output-term query))
-;;       (println "Pool: " (output-pool pool))
-;;       (println "Stack: " (mapv #(vector (output-term (first %))
-;;                                         (output-pool (second %))
-;;                                         (nth % 2)) stack))
-;;       (println)
+      (println "Query: " (output-term query))
+      (println "Pool: " (output-pool pool))
+      (println "Stack: " (mapv #(vector (output-term (first %))
+                                        (output-pool (second %))
+                                        (nth % 2)) stack))
+      (println)
 
       (if (false? query)
         (println-red "false.\n")
