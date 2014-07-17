@@ -3,36 +3,40 @@
         [logic.util]])
 
 
-(defn math-add [num-x num-y]
+(defn math-add [[num-x num-y] pool]
   (if (and (prolog-number? num-x)
            (prolog-number? num-y))
-    (>number< (+ (:value num-x)
-                 (:value num-y)))
+    [(>number< (+ (:value num-x)
+                  (:value num-y)))
+     pool]
     (throw (Exception. "Operation + requires numbers as arguments!"))))
 
 
-(defn math-substract [num-x num-y]
+(defn math-substract [[num-x num-y] pool]
   (if (and (prolog-number? num-x)
            (prolog-number? num-y))
-    (>number< (- (:value num-x)
+    [(>number< (- (:value num-x)
                  (:value num-y)))
-    (throw (Exception. "Operation + requires numbers as arguments!"))))
+     pool]
+    (throw (Exception. "Operation - requires numbers as arguments!"))))
 
 
-(defn math-multiply [num-x num-y]
+(defn math-multiply [[num-x num-y] pool]
   (if (and (prolog-number? num-x)
            (prolog-number? num-y))
-    (>number< (* (:value num-x)
+    [(>number< (* (:value num-x)
                  (:value num-y)))
-    (throw (Exception. "Operation + requires numbers as arguments!"))))
+     pool]
+    (throw (Exception. "Operation * requires numbers as arguments!"))))
 
 
-(defn math-divide [num-x num-y]
+(defn math-divide [[num-x num-y] pool]
   (if (and (prolog-number? num-x)
            (prolog-number? num-y))
-    (>number< (/ (:value num-x)
+    [(>number< (/ (:value num-x)
                  (:value num-y)))
-    (throw (Exception. "Operation + requires numbers as arguments!"))))
+     pool]
+    (throw (Exception. "Operation / requires numbers as arguments!"))))
 
 
 (defn math-method? [method]
@@ -43,10 +47,6 @@
             (same? func math-divide))
       true
       false)))
-
-
-(defn execute [method pool]
-  ((:func method) (:args method) pool))
 
 
 (defn calculate [term pool]
@@ -74,10 +74,14 @@
      (=variable= term-x (calculate term-y pool) pool)
 
    (prolog-number? term-x)
-     (math-equals term-x
-                  (calculate term-y pool))
+     (math-equals
+      [term-x (calculate term-y pool)]
+      pool)
    :else
-   (throw (Exception. "Operator \"is\" can be used only with variable or number!"))))
+   (throw (Exception. (str
+                       "'"
+                       (type term-x)
+                       "' cannot be used in 'is' operator!")))))
 
 
 (def math-functions {:+ (>term< [:#met :+ [:A :B] math-add])
@@ -85,6 +89,3 @@
                      :* (>term< [:#met :* [:A :B] math-multiply])
                      :is (>term< [:#met :is [:A :B] math-is])
                      := (>term< [:#met := [:A :B] math-equals])})
-
-
-(unify-terms (>method< [:#met :is ]))

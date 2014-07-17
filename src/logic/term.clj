@@ -583,6 +583,7 @@
     (PrologConjunct. (mapv >term< list))
     (throw (Exception. "To create a PrologConjunct from a vector, it must start with a :#con keyword."))))
 
+
 (defn >disjunct< [[sign & list]]
   (if (same? :#dis sign)
     (PrologDisjunct. (mapv >term< list))
@@ -666,12 +667,10 @@
 (defrecord PrologFunctor [head body])
 
 
-(defn >functor< [[sign [name args body]]]
+(defn >functor< [[sign name args body]]
   (if (same? sign :#fun)
     (let [new-head
-          (>structure<
-           name
-           args)
+          (>structure< [:#str name args])
           new-body (>term< body)]
       (PrologFunctor.
        new-head
@@ -718,6 +717,66 @@
      final-names]))
 
 
+
+;; ============================================================================
+;;  PrologMath: 1 + 2, X is 5 + 3.
+;;
+;;                                 +       is
+;;                                / \  ,  /  \
+;;  Actualy, it looks more like: 1   2   X    +
+;;                                           / \
+;;                                          5   3
+;;
+
+
+(defrecord PrologMath [name left right])
+
+
+(defn >math< [[sign name left right]]
+  (if (same? sign :#math)
+    (PrologMath. name
+                 (>term< left)
+                 (>term< right))
+    (throw (Exception. "To create a PrologMath from a vector, it must start with the :#math keyword."))))
+
+
+(defn prolog-math? [math]
+  (same? (type math)
+         logic.term.PrologMath))
+
+
+(defn =math= [math pool]
+  (PrologMath. (:name math)
+               (=term= (:left math) pool)
+               (=term= (:right math) pool)))
+
+
+(defn generate-math [math names]
+  (let [[new-left names-left] (generate-term (:left math) names)
+        [new-right names-right] (generate-term (:right math) names-left)]
+    [(PrologMath. (:name math)
+                  new-left
+                  new-right)
+     names-right]))
+
+(defn get-math-vars [math]
+  (clojure.set/union (get-term-vars (:left math))
+                     (get-term-vars (:right math))))
+
+
+(defn output-math [math]
+  (let [out-left (output-term (:left math))
+        out-right (output-term (:right math))]
+    (str "("
+         out-left
+         " "
+         (keyword->string (:name math))
+         " "
+         out-right
+         ")")))
+
+
+
 ;; =============================================================================
 ;;  PrologMethod: A + B, X is 42.01 - 0.01.
 ;;
@@ -743,12 +802,37 @@
                  (:func method)))
 
 
+(defn execute [method pool]
+  ((:func method) (:args method) pool))
+
+
 (defn generate-method [method names]
   (let [[new-args new-pool] (generate-vector (:args method) names)]
     [(PrologMethod. (:name method)
                     new-args
                     (:func method))
      new-pool]))
+
+(defn match-math->method
+  [math method pool]
+  (if (or (different? (:name math)
+                      (:name method))
+          (different? 2 (count (:args method))))
+    [false pool]
+    (let [[new-left pool-left] (unify-terms (:left math)
+                                            (first (:args method))
+                                            pool)]
+      (if (false? new-left)
+        [false [pool]]
+        (let [[new-right pool-right] (unify-terms (:right math)
+                                                  (second (:args method))
+                                                  pool-left)]
+          (if (false? new-right)
+            [false pool]
+            (execute (PrologMethod. (:name method)
+                                    [new-left new-right]
+                                    (:func method))
+                     pool)))))))
 
 
 (defn unify-methods [method-x method-y pool]
@@ -774,16 +858,9 @@
 
 
 (defn output-method [method]
-  (let [args (:args method)
-        name (:name method)]
-    (if (= 2 (count args))
-      (str (output-term (first args))
-           " "
-           (keyword->string name)
-           " "
-           (output-term (second args)))
-      (str (keyword->string (:name method))
-           (output-arguments (:args method))))))
+  (str (keyword->string (:name method))
+       (output-arguments (:args method))))
+
 
 
 ;; ============================================================================
@@ -815,6 +892,9 @@
    (prolog-method? term)
      (=method= term pool)
 
+   (prolog-math? term)
+     (=math= term pool)
+
    :else
      term))
 
@@ -822,18 +902,30 @@
 (defn generate-term
   [term names]
   (cond
+
    (prolog-variable? term)
      (generate-variable term names)
+
    (prolog-list? term)
      (generate-list term names)
+
    (prolog-structure? term)
      (generate-structure term names)
+
+   (prolog-functor? term)
+     (generate-functor term names)
+
    (prolog-conjunct? term)
      (generate-conjunct term names)
+
    (prolog-disjunct? term)
      (generate-disjunct term names)
+
    (prolog-method? term)
      (generate-method term names)
+
+   (prolog-math? term)
+     (generate-math term names)
    :else
      [term names]))
 
@@ -886,6 +978,8 @@
         (>functor< inp)
       (same? :#met (first inp))
         (>method< inp)
+      (same? :#math (first inp))
+        (>math< inp)
       :else
         (>list< inp))
    (string? inp)
@@ -903,24 +997,36 @@
   (cond
    (prolog-variable? term)
      (output-variable term)
+
    (prolog-atom? term)
      (output-atom term)
+
    (prolog-number? term)
      (output-number term)
+
    (prolog-string? term)
      (output-string term)
+
    (prolog-list? term)
      (output-list term)
+
    (prolog-structure? term)
      (output-structure term)
+
    (prolog-conjunct? term)
      (output-conjunct term)
+
    (prolog-disjunct? term)
      (output-disjunct term)
+
    (prolog-method? term)
      (output-method term)
+
+   (prolog-math? term)
+     (output-math term)
+
    :else
-     (str "\"" term "\"")))
+     term))
 
 
 (defn get-term-vars
@@ -937,7 +1043,11 @@
    (prolog-disjunct? term)
      (get-disjunct-vars term)
    (prolog-method? term)
-     (get-method-vars term)))
+     (get-method-vars term)
+   (prolog-math? term)
+     (get-math-vars term)
+   :else
+     #{}))
 
 
 (defn match-structure->term

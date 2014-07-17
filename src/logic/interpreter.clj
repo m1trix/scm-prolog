@@ -49,36 +49,43 @@
 
 (defn merge-queries
   [query-x query-y]
-  (cond
-   (same? [] query-x)
-     query-y
-   (prolog-structure? query-x)
-     (cond
-      (prolog-structure? query-y)
-        (->PrologConjunct [query-x query-y])
-      (prolog-conjunct? query-y)
-        (->PrologConjunct (concat [query-x] (:elems query-y)))
-      (prolog-disjunct? query-y)
-        (->PrologDisjunct (concat [query-x] (:elems query-y))))
-   (prolog-conjunct? query-x)
-     (cond
-      (prolog-structure? query-y)
-        (->PrologConjunct (conj (:elems query-x)
-                                query-y))
-      (prolog-conjunct? query-y)
-        (->PrologConjunct (concat (:elems query-x)
-                                  (:elems query-y)))
-      (prolog-disjunct? query-y)
-        (->PrologDisjunct (concat [query-x] (:elems query-y))))
-   (prolog-disjunct? query-x)
-     (cond
-      (prolog-structure? query-y)
-        (->PrologDisjunct (conj (:elems query-x) query-y))
-      (prolog-conjunct? query-y)
-        (->PrologConjunct (concat [query-x] (:elems query-y)))
-      (prolog-disjunct? query-y)
-        (->PrologDisjunct (concat (:elems query-x)
-                                  (:elems query-y))))))
+  (let [new-query (cond
+                   (or (same? [] query-x)
+                       (same? () query-x)
+                       (prolog-number? query-x))
+                   query-y
+                   (prolog-structure? query-x)
+                   (cond
+                    (prolog-structure? query-y)
+                    (->PrologConjunct [query-x query-y])
+                    (prolog-conjunct? query-y)
+                    (->PrologConjunct (concat [query-x] (:elems query-y)))
+                    (prolog-disjunct? query-y)
+                    (->PrologDisjunct (concat [query-x] (:elems query-y))))
+                   (prolog-conjunct? query-x)
+                   (cond
+                    (prolog-structure? query-y)
+                    (->PrologConjunct (conj (:elems query-x)
+                                            query-y))
+                    (prolog-conjunct? query-y)
+                    (->PrologConjunct (concat (:elems query-x)
+                                              (:elems query-y)))
+                    (prolog-disjunct? query-y)
+                    (->PrologDisjunct (concat [query-x] (:elems query-y))))
+                   (prolog-disjunct? query-x)
+                   (cond
+                    (prolog-structure? query-y)
+                    (->PrologDisjunct (conj (:elems query-x) query-y))
+                    (prolog-conjunct? query-y)
+                    (->PrologConjunct (concat [query-x] (:elems query-y)))
+                    (prolog-disjunct? query-y)
+                    (->PrologDisjunct (concat (:elems query-x)
+                                              (:elems query-y)))))]
+    (if (and (or (prolog-conjunct? new-query)
+                 (prolog-disjunct? new-query))
+             (empty? (:elems new-query)))
+      []
+      new-query)))
 
 
 
@@ -130,7 +137,7 @@
              index start]
         (if (empty? clauses)
           [false {} []]
-          (let [[term names] (generate-functor (first clauses) {})
+          (let [[term names] (generate-term (first clauses) {})
                 pool+names (merge pool (make-map (vals names) #{}))
                 [new-goals new-pool] (match-structure->term struct term pool+names)]
             (if (false? new-goals)
@@ -141,26 +148,28 @@
                 [new-goals new-pool [struct pool -1]]))))))))
 
 
-(defn match-method
-  [method pool _]
-  (let [name (:name method)
-        [other names] (generate-method (name @knowledge-base) {})
-        pool-names (merge pool (make-map (vals names) #{}))
-        [new-method new-pool] (unify-methods method other pool-names)]
-    (if (false? new-method)
-      [false {} []]
-      (let [[arg-l arg-r] (:args new-method)
-            new-args [(match-term arg-l new-pool 0)
-                      (match-term arg-r new-pool 0)]
-            ]
-        new-method))))
-
-
-(match-method (>method< [:#met :is [:X
-                                     [:#met :+ [1 2] nil]]
-                                nil])
-              {:X #{}}
-              0)
+(defn match-math
+  [math pool index]
+  (if (= index -1)
+    [false {} []]
+    (if (prolog-math? math)
+      (let [[new-left pool-left _] (match-math (:left math) pool 0)]
+        (if (false? new-left)
+          [false {} []]
+          (let [[new-right pool-right _] (match-math (:right math) pool-left 0)]
+            (if (false? new-right)
+              [false {} []]
+              (let [method ((:name math) @knowledge-base)]
+                (if (nil? method)
+                  [false {} []]
+                  (let [[new-method names] (generate-method method {})
+                        pool+names (merge pool (make-map (vals names) #{}))
+                        new-math (->PrologMath (:name math) new-left new-right)
+                        [value new-pool] (match-math->method new-math new-method pool+names)]
+                    (if (false? value)
+                      [false {} []]
+                      [value new-pool [[] pool -1]]))))))))
+      [math pool []])))
 
 
 (defn match-term
@@ -172,12 +181,10 @@
        (match-conjunct term pool start)
      (prolog-structure? term)
        (match-structure term pool start)
+     (prolog-math? term)
+       (match-math term pool start)
      (prolog-disjunct? term)
-       (match-disjunct term pool start)
-     (prolog-method? term)
-       (match-method term pool start)
-     (prolog-variable? term)
-       [term pool])))
+       (match-disjunct term pool start))))
 
 
 
@@ -240,7 +247,7 @@
             [new-query new-pool new-frame] (match-term prev-query
                                                        prev-pool
                                                        index)]
-        (if (false? new-query)
+        (if (not new-query)
           (recur (pop stack))
           [new-query new-pool (push (pop stack)
                                     new-frame)])))))
@@ -271,12 +278,12 @@
            pool (make-map main-pool #{})
            stack []]
 
-      (println "Query: " (output-term query))
-      (println "Pool: " (output-pool pool))
-      (println "Stack: " (mapv #(vector (output-term (first %))
-                                        (output-pool (second %))
-                                        (nth % 2)) stack))
-      (println)
+;;       (println "Query: " (output-term query))
+;;       (println "Pool: " (output-pool pool))
+;;       (println "Stack: " (mapv #(vector (output-term (first %))
+;;                                         (output-pool (second %))
+;;                                         (nth % 2)) stack))
+;;       (println)
 
       (if (false? query)
         (println-red "false.\n")
