@@ -513,6 +513,11 @@
     (throw (Exception. "To create a PrologFact from a vector, it must start with a :%fact%"))))
 
 
+(defn prolog-fact? [term]
+  (same? (type term)
+         logic.term.PrologFact))
+
+
 (defn =fact= [fact pool]
   (PrologFact. (:atom fact)
                (=arguments= (:args fact)
@@ -636,66 +641,64 @@
 
 
 ;; ===============================================================================
-;;  Prolog Functor: member(A, [_ | X]) :- member(A, X).
+;;  Prolog Rule: member(A, [_ | X]) :- member(A, X).
 ;;
-;;  A Prolog Functor has a head and a body.
-;;  The head is a Prolog Structure. A functor is defined by it's head.
-;;  The body is a Prolog Conjunct or a Prolog Disjunct.
+;;  A Prolog Rule has a head and a body.
+;;  The head is a Prolog Structure. A Rule is defined by it's head.
+;;  The body is a Term: Fact, Conjunction or Disjunction.
 ;;  The symbol :- is called neck. It means "body => head",
 ;;  or "if the body is true, then the head is true."
 ;;
 
-(defrecord PrologFunctor [head body])
+(defrecord PrologRule [head body])
 
 
-(defn >functor< [[sign name args body]]
-  (if (same? sign :#fun)
+(defn >rule< [[sign name args body]]
+  (if (same? sign :%rule%)
     (let [new-head
-          (>structure< [:#str name args])
+          (>fact< [:%fact% name args])
           new-body (>term< body)]
-      (PrologFunctor.
+      (PrologRule.
        new-head
        new-body))
-    (throw (Exception. "To create a PrologFunctor from a vector, it must start with :#fun keyword."))))
+    (throw (Exception. "To create a PrologFunctor from a vector, it must start with :%fact% keyword."))))
 
 
-(defn prolog-functor? [func]
-  (same? (type func)
-         logic.term.PrologFunctor))
+(>rule< [:%rule% "member" [:A [:A :| :_]]
+         [:%fact% "member" [:A :X]]])
 
 
-(defn =functor=
-  "It's a specific evaluation. It evaluates and returns only the body of the functor."
+(defn prolog-rule? [rule]
+  (same? (type rule)
+         logic.term.PrologRule))
+
+
+(defn =rule=
+  "It's a specific evaluation. It evaluates and returns only the body of the rule."
   [func pool]
-  (=term= (:body func) pool))
+  (=term= (:body rule) pool))
 
 
-(defn match-structure->functor
-  [struct func pool]
+(defn unify-fact->rule
+  [fact rule pool]
   (let [[new-head new-pool]
-        (unify-structures
-         (:head func)
-         struct
+        (unify-facts
+         (:head rule)
+         fact
          pool)]
     (if (false? new-head)
       [false pool]
-      [(=functor= func new-pool) new-pool])))
+      [(=rule= new-head new-pool) new-pool])))
 
 
-(defn generate-functor
-  [func names]
-  (let [[new-head new-names]
-          (generate-structure
-           (:head func)
-           names)
-        [new-body final-names]
-          (generate-term
-           (:body func)
-           new-names)]
-    [(PrologFunctor.
-       new-head
-       new-body)
-     final-names]))
+(defn generate-rule
+  [rule names]
+  (let [[new-head head-names] (generate-fact (:head rule)
+                                             names)
+        [new-body new-names] (generate-term (:body rule)
+                                            head-names)]
+    [(PrologRule. new-head new-body)
+     new-names]))
 
 
 
@@ -890,11 +893,11 @@
    (prolog-list? term)
      (generate-list term names)
 
-   (prolog-structure? term)
-     (generate-structure term names)
+   (prolog-fact? term)
+     (generate-fact term names)
 
-   (prolog-functor? term)
-     (generate-functor term names)
+   (prolog-rule? term)
+     (generate-rule term names)
 
    (prolog-conjunct? term)
      (generate-conjunct term names)
@@ -953,10 +956,10 @@
         (>conjunct< inp)
       (same? :#dis (first inp))
         (>disjunct< inp)
-      (same? :#str (first inp))
-        (>structure< inp)
-      (same? :#fun (first inp))
-        (>functor< inp)
+      (same? :%fact% (first inp))
+        (>fact< inp)
+      (same? :%rule% (first inp))
+        (>rule< inp)
       (same? :#met (first inp))
         (>method< inp)
       (same? :#math (first inp))
