@@ -499,118 +499,48 @@
 
 
 ;; ===========================================================================
-;;  Prolog Structures: cat(tom). member(X, Y).
-;;  Each structure has a name and arguments.
+;;  Prolog Fact: cat(tom). member(X, Y).
+;;  Each fact has a name and arguments.
+;;  The name is a Prolog Atom.
 ;;
-(defrecord PrologStructure [name args])
+(defrecord PrologFact [atom args])
 
 
-(defn >structure< [[sign name args]]
-  (if (same? sign :#str)
-    (if-not (A-Z? name)
-      (PrologStructure. name (mapv >term< args))
-      (throw (Exception. "PrologStructure name cannot start with a capital letter.")))
-    (throw (Exception. "To create a PrologStructure from a vector, it must start with a :#str keyword."))))
+(defn >fact< [[sign atom args]]
+  (if (same? sign :%fact%)
+    (PrologFact. (>atom< atom)
+                 (>arguments< args))
+    (throw (Exception. "To create a PrologFact from a vector, it must start with a :%fact%"))))
 
 
-(defn prolog-structure? [struct]
-  (same? (type struct)
-         logic.term.PrologStructure))
+(defn =fact= [fact pool]
+  (PrologFact. (:atom fact)
+               (=arguments= (:args fact)
+                            pool)))
+
+(defn generate-fact [fact names]
+  (generate-arguments (:args fact)
+                      names))
 
 
-(defn unify-args [args-x args-y pool]
-  (loop [new-args []
-         rest-x args-x
-         rest-y args-y
-         new-pool pool]
-    (if (empty? rest-x)
-      [new-args new-pool]
-      (let [elem-x (first rest-x)
-            elem-y (first rest-y)
-            [new-elem newest-pool] (unify-terms elem-x elem-y new-pool)]
-        (if (false? new-elem)
+(defn unify-facts [fact-x fact-y pool]
+  (let [[new-name _] (unify-atoms (:atom fact-x)
+                                  (:atom fact-y)
+                                  pool)]
+    (if (false? new-name)
+      [false pool]
+      (let [[new-args new-pool] (unify-arguments (:args fact-x)
+                                                 (:args fact-y)
+                                                 pool)]
+        (if (false? new-args)
           [false pool]
-          (recur (conj new-args new-elem)
-                 (rest rest-x)
-                 (rest rest-y)
-                 newest-pool))))))
+          [(PrologFact. new-name new-args)
+           new-pool])))))
 
 
-(defn unify-structures
-  [struct-x struct-y pool]
-  (cond
-
-   (different? (:name struct-x)
-               (:name struct-y))
-     [false pool]
-
-   (different? (count (:args struct-x))
-               (count (:args struct-y)))
-     [false pool]
-
-   :else
-     (let [[new-args new-pool] (unify-args (:args struct-x)
-                                           (:args struct-y)
-                                           pool)]
-       (if (false? new-args)
-         [false pool]
-         [(PrologStructure. (:name struct-x)
-                            new-args)
-          new-pool]))))
-
-
-(defn generate-args
-  [args names]
-  (loop [new-args []
-         old-args args
-         new-names names]
-    (if (empty? old-args)
-      [new-args new-names]
-      (let [old-elem (first old-args)
-            [new-elem newest-names] (generate-term old-elem
-                                                   new-names)]
-        (recur (conj new-args new-elem)
-               (rest old-args)
-               newest-names)))))
-
-
-(defn generate-structure
-  [struct names]
-  (let [[new-args new-names] (generate-args (:args struct) names)]
-    [(PrologStructure. (:name struct)
-                      new-args)
-     new-names]))
-
-
-(defn =structure=
-  "Replaces all variables of the structure with their values from the pool."
-  [struct pool]
-  (loop [new-args (mapv #(=term= % pool) (:args struct))]
-    (PrologStructure. (:name struct)
-                       new-args)))
-
-
-(defn output-arguments [args]
-  (loop [out "("
-         elems args]
-    (if (empty? (rest elems))
-      (str out
-           (output-term (first elems))
-           ")")
-      (let [out-elem (output-term (first elems))]
-        (recur (str out out-elem ", ")
-               (rest elems))))))
-
-
-(defn output-structure
-  [struct]
-  (str (keyword->string (:name struct))
-       (output-arguments (:args struct))))
-
-
-(defn get-structure-vars
-  [struct]
-  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:args struct)))
+(defn output-fact [fact]
+  (str (output-atom (:atom fact))
+       (output-arguments (:args fact))))
 
 
 ;; ================================================================================
