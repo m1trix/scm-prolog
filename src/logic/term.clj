@@ -77,7 +77,7 @@
 (defn >number< [n]
   (if (number? n)
     (PrologNumber. n)
-    (throw (Exception. (str value " is illegal PrologNumber value!")))))
+    (throw (Exception. (str n " is illegal PrologNumber value!")))))
 
 
 (defn prolog-number? [number]
@@ -439,6 +439,63 @@
                      ", ")
                 (rest elems))))))
 
+
+
+
+;; ===========================================================================
+;;  PrologArguments: (Var, atom, [1,2 | [3]]).
+;;
+(defrecord PrologArguments [args])
+
+
+(defn >arguments< [args]
+  (PrologArguments. (mapv >term< args)))
+
+
+(defn =arguments= [args pool]
+  (PrologArguments. (mapv #(=term= % pool)
+                          (:args args))))
+
+
+(defn generate-arguments [args names]
+  (let [[new-args new-names]
+        (reduce
+         (fn [[res names] term]
+           (let [[new-term new-names]
+                 (generate-term term names)]
+             [(conj res new-term) new-names]))
+         [[] names] (:args args))]
+    [(PrologArguments. new-args) new-names]))
+
+
+(defn unify-arguments [args-x args-y pool]
+  (let [elems-x (:args args-x)
+        elems-y (:args args-y)]
+    (if (different? (count elems-x)
+                    (count elems-y))
+      [false pool]
+      (let [[new-args new-pool]
+             (->>
+              (mapv #(vector %1 %2) elems-x elems-y)
+              (reduce
+               (fn [[res pool] [term-x term-y]]
+                 (if (false? res)
+                   [false pool]
+                   (let [[new-term new-pool] (unify-terms term-x term-y pool)]
+                     (if (false? new-term)
+                       [false pool]
+                       [(conj res new-term)
+                        new-pool]))))
+               [[] pool]))]
+        [(PrologArguments. new-args)
+         new-pool]))))
+
+
+(defn output-arguments [args]
+  (str "("
+       (output-term (first (:args args)))
+       (reduce #(str %1 ", " (output-term %2)) "" (rest (:args args)))
+       ")"))
 
 
 ;; ===========================================================================
