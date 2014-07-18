@@ -35,11 +35,13 @@
 ;;
 ;;  It's a general-purpose name with no inherent meaning.
 ;;
+;;  Atom "atom" can be unified with atom "'atom'".
+;;
 (defrecord PrologAtom [name])
 
 
 (defn >atom< [name]
-  (if (re-matches (re-pattern #"[a-z][a-zA-Z_]+|'[^,]+'") name)
+  (if (re-matches (re-pattern #"[a-z][a-zA-Z_]+|'[^']+'") name)
     (PrologAtom. name)
     (throw (Exception. (str name " is invalid PrologAtom name!")))))
 
@@ -51,11 +53,11 @@
 (defn unify-atoms
   "Two atoms unify if they are the same."
   [atom-x atom-y pool]
-  (if (same?
-       (:name atom-x)
-       (:name atom-y))
-    [atom-x pool]
-    [false pool]))
+  (let [name-x (re-find (re-pattern #"[^']+") (:name atom-x))
+        name-y (re-find (re-pattern #"[^']+") (:name atom-y))]
+    (if (same? name-x name-y)
+      [(>atom< name-x) pool]
+      [false pool])))
 
 
 (defn output-atom
@@ -66,7 +68,7 @@
 
 
 ;; ===========================================================================
-;;  Prolog Numbers: 1,   5.5.
+;;  Prolog Numbers: 1, 5.5.
 ;;  They are just numbers.
 ;;
 (defrecord PrologNumber [value])
@@ -75,7 +77,7 @@
 (defn >number< [n]
   (if (number? n)
     (PrologNumber. n)
-    (throw (Exception. (str "Illegal PrologNumber value: \"" n "\"")))))
+    (throw (Exception. (str value " is illegal PrologNumber value!")))))
 
 
 (defn prolog-number? [number]
@@ -101,8 +103,7 @@
 
 
 ;; ============================================================================
-;;  Prolog String: 'str1' 'Yes! It is a string!'
-;;  tom. and 'tom'. can be unified.
+;;  Prolog String: "string", "Tom is a cat!"
 ;;
 (defrecord PrologString [string])
 
@@ -110,7 +111,7 @@
 (defn >string< [s]
   (if (string? s)
     (PrologString. s)
-    (throw (Exception. (str "Illegal PrologString value: \"" s "\"")))))
+    (throw (Exception. (str s " is illegal PrologString value.")))))
 
 
 (defn prolog-string? [string]
@@ -129,8 +130,7 @@
 (defn output-string
   "Prints the string to the screen in a specific format."
   [s]
-  (str \' (:string s) \'))
-
+  (str \" (:string s) \"))
 
 
 
