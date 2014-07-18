@@ -31,21 +31,17 @@
 
 
 ;; ===========================================================================
-;;  Prolog Atoms: cat. dog.
-;;  They are more like facts - Prolog treats them as a TRUE values.
-;;  An Atom name always starts with a small letter.
+;;  Prolog Atoms: cat, dOG, cat_dog, 'some atom+wh@tever s&mbols'
+;;
+;;  It's a general-purpose name with no inherent meaning.
 ;;
 (defrecord PrologAtom [name])
 
+
 (defn >atom< [name]
-  (if (a-z? name)
+  (if (re-matches (re-pattern #"[a-z][a-zA-Z_]+|'[^,]+'") name)
     (PrologAtom. name)
-    (throw
-     (Exception.
-      (str
-       "Illegal PrologAtom name: \""
-       (keyword->string name)
-       "\"")))))
+    (throw (Exception. (str name " is invalid PrologAtom name!")))))
 
 
 (defn prolog-atom? [atom]
@@ -63,11 +59,9 @@
 
 
 (defn output-atom
-  "Prints the atom to the screen in a specific format."
+  "Returns a string with the name of the atom."
   [atom]
-  (let [text (keyword->string (:name atom))]
-    text))
-
+  (:name atom))
 
 
 
