@@ -319,10 +319,10 @@
 
 (defn get-list-variables
   [list]
-  (let [head-vars (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:head list))]
+  (let [head-vars (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:head list))]
     (if (same? [] (:tail list))
       head-vars
-      (clojure.set/union head-vars (get-term-vars (:tail list))))))
+      (clojure.set/union head-vars (get-term-variables (:tail list))))))
 
 
 (defn refactor-list
@@ -553,7 +553,7 @@
 
 (defn get-fact-variables
   [fact]
-  (get-arguments-variables (:args args)))
+  (get-arguments-variables (:args fact)))
 
 
 (defn output-fact [fact]
@@ -621,11 +621,11 @@
 
 (defn get-conjunct-variables
   [conjunct]
-  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:elems conjunct)))
+  (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:elems conjunct)))
 
 (defn get-disjunct-variables
   [disjunct]
-  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:elems disjunct)))
+  (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:elems disjunct)))
 
 
 (defn output-conjunct
@@ -677,10 +677,6 @@
     (throw (Exception. "To create a PrologFunctor from a vector, it must start with :%fact% keyword."))))
 
 
-(>rule< [:%rule% "member" [:A [:A :| :_]]
-         [:%fact% "member" [:A :X]]])
-
-
 (defn prolog-rule? [rule]
   (same? (type rule)
          logic.term.PrologRule))
@@ -688,7 +684,7 @@
 
 (defn =rule=
   "It's a specific evaluation. It evaluates and returns only the body of the rule."
-  [func pool]
+  [rule pool]
   (=term= (:body rule) pool))
 
 
@@ -757,8 +753,8 @@
      names-right]))
 
 (defn get-math-variables [math]
-  (clojure.set/union (get-term-vars (:left math))
-                     (get-term-vars (:right math))))
+  (clojure.set/union (get-term-variables (:left math))
+                     (get-term-variables (:right math))))
 
 
 (defn output-math [math]
@@ -832,26 +828,12 @@
                      pool)))))))
 
 
-(defn unify-methods [method-x method-y pool]
-  (if (or (different? (:name method-x)
-                      (:name method-y))
-          (different? (arity method-x)
-                      (arity method-y)))
-    [false pool]
-    (let [[new-args new-pool] (unify-args (:args method-x)
-                                          (:args method-y)
-                                          pool)]
-      (if (false? new-args)
-        [false pool]
-        [(PrologMethod. (:name method-x)
-                        new-args
-                        (:func method-y))
-         new-pool]))))
+(defn unify-methods [method-x method-y pool])
 
 
 (defn get-method-variables
   [method]
-  (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:args method)))
+  (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:args method)))
 
 
 (defn output-method [method]
@@ -874,8 +856,8 @@
    (prolog-list? term)
      (=list= term pool)
 
-   (prolog-structure? term)
-     (=structure= term pool)
+   (prolog-fact? term)
+     (=fact= term pool)
 
    (prolog-variable? term)
      (=variable= term pool)
@@ -949,8 +931,8 @@
      (unify-strings term-x term-y pool)
    (prolog-list? term-x)
      (unify-lists term-x term-y pool)
-   (prolog-structure? term-x)
-     (unify-structures term-x term-y pool)
+   (prolog-fact? term-x)
+     (unify-facts term-x term-y pool)
    (prolog-method? term-x)
      (unify-methods term-x term-y pool)))
 
@@ -1007,8 +989,8 @@
    (prolog-list? term)
      (output-list term)
 
-   (prolog-structure? term)
-     (output-structure term)
+   (prolog-fact? term)
+     (output-fact term)
 
    (prolog-conjunct? term)
      (output-conjunct term)
@@ -1055,6 +1037,3 @@
 
    :else
      #{}))
-
-
-(get-term-variables (>term< [:%fact% "member" [:A [:A :| :L]]]))
