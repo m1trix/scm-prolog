@@ -14,6 +14,10 @@
 (def >term<)
 (def get-term-variables)
 
+(defprotocol TermInterface
+  (unify [x y pool])
+  (output [x]))
+
 
 (defn generate-vector
   [elems pool]
@@ -41,7 +45,7 @@
 
 
 (defn >atom< [name]
-  (if (re-matches (re-pattern #"[a-z][a-zA-Z_]+|'[^']+'") name)
+  (if (re-matches (re-pattern #"[a-z][a-zA-Z_]*|'[^']+'") name)
     (PrologAtom. name)
     (throw (Exception. (str name " is invalid PrologAtom name!")))))
 
@@ -50,20 +54,21 @@
   (same? (type atom) logic.term.PrologAtom))
 
 
-(defn unify-atoms
-  "Two atoms unify if they are the same."
-  [atom-x atom-y pool]
-  (let [name-x (re-find (re-pattern #"[^']+") (:name atom-x))
-        name-y (re-find (re-pattern #"[^']+") (:name atom-y))]
-    (if (same? name-x name-y)
-      [(>atom< name-x) pool]
-      [false pool])))
+(extend-protocol TermInterface
+  logic.term.PrologAtom
 
+  (unify
+   [x y pool]
+   (if (prolog-atom? y)
+     (let [name-x (re-find (re-pattern #"[^']+") (:name x))
+           name-y (re-find (re-pattern #"[^']+") (:name y))]
+       (if (same? name-x name-y)
+         [(>atom< name-x) pool]
+         [false pool]))
+     [false pool]))
 
-(defn output-atom
-  "Returns a string with the name of the atom."
-  [atom]
-  (:name atom))
+  (output [x]
+    (:name x)))
 
 
 
@@ -84,21 +89,18 @@
   (same? (type number) logic.term.PrologNumber))
 
 
-(defn unify-numbers
-  "Two numbers unify if they have the same value."
-  [number-x number-y pool]
-  (if (same? (:value number-x)
-             (:value number-y))
-    [number-x pool]
-    [false pool]))
+(extend-protocol TermInterface
+  logic.term.PrologNumber
 
+  (unify
+   [x y pool]
+   (if (and (prolog-number? y)
+            (same? (:value x) (:value y)))
+     [x pool]
+     [false pool]))
 
-(defn output-number
-  "Prints the number to the screen in a specific format."
-  [number]
-  (:value number))
-
-
+  (output [x]
+    (str (:value x))))
 
 
 
@@ -126,11 +128,18 @@
     [string-x pool]
     [false pool]))
 
+(extend-protocol TermInterface
+  logic.term.PrologString
 
-(defn output-string
-  "Prints the string to the screen in a specific format."
-  [s]
-  (str \" (:string s) \"))
+  (unify [x y pool]
+    (if (and (prolog-string? y)
+             (same? (:string x)
+                    (:string y)))
+      [x pool]
+      [false pool]))
+
+  (output [x]
+    (str "\"" (:string x) "\"")))
 
 
 
@@ -440,6 +449,21 @@
                 (rest elems))))))
 
 
+(extend-protocol TermInterface
+  logic.term.PrologList
+
+  (output [x]
+    (let [out-head (str "["
+                        (reduce #(str %1 ", " (output %2))
+                                (output (first (:head x)))
+                                (rest (:head x))))]
+      (if (empty? (:tail x))
+        (str out-head "]")
+        (str out-head
+             " | "
+             (output (:tail x))
+             "]")))))
+
 
 
 ;; ===========================================================================
@@ -491,11 +515,13 @@
          new-pool]))))
 
 
-(defn output-arguments [args]
-  (str "("
-       (output-term (first (:args args)))
-       (reduce #(str %1 ", " (output-term %2)) "" (rest (:args args)))
-       ")"))
+(extend-protocol TermInterface
+  logic.term.PrologArguments
+
+  (output [x]
+    (str "("
+         (reduce #(str %1 ", " (output %2)) (output (first (:args x))) (rest (:args x)))
+         ")")))
 
 
 (defn get-arguments-variables
@@ -555,102 +581,14 @@
   [fact]
   (get-arguments-variables (:args fact)))
 
-
-(defn output-fact [fact]
-  (str (output-atom (:atom fact))
-       (output-arguments (:args fact))))
+(extend-protocol TermInterface
+  logic.term.PrologFact
 
 
-;; ================================================================================
-;;  Prolog Conjunct: member(X, [1, 2]), member(X, [2, 3]).
-;;  Prolog Disjunct: member(X, [1, 2]); member(X, [2, 3]).
-;;
-;;  A Prolog Conjunct is a vector of Prolog Structures or Prolog Disjuncts.
-;;  No conjunct has a name.
-;;  A conjunct is true if all of it's elements are true.
-;;
-;;  A Prolog Disjunct is a vector or Prolog Structures or Prolog Conjuncts.
-;;  No disjunct has a name.
-;;  A disjunct is true if atleast one of it's elements is true.
-;;
-(defrecord PrologConjunct [elems])
-(defrecord PrologDisjunct [elems])
+  (output [x]
+    (str (output-atom (:atom x))
+         (output-arguments (:args x)))))
 
-
-(defn >conjunct< [[sign & list]]
-  (if (same? :#con sign)
-    (PrologConjunct. (mapv >term< list))
-    (throw (Exception. "To create a PrologConjunct from a vector, it must start with a :#con keyword."))))
-
-
-(defn >disjunct< [[sign & list]]
-  (if (same? :#dis sign)
-    (PrologDisjunct. (mapv >term< list))
-    (throw (Exception. "To create a PrologDisjunct from a vector, it must start with a :#dis keyword."))))
-
-(defn prolog-conjunct? [conjunct]
-  (same? (type conjunct)
-         logic.term.PrologConjunct))
-
-(defn prolog-disjunct? [disjunct]
-  (same? (type disjunct)
-         logic.term.PrologDisjunct))
-
-
-(defn =conjunct=
-  [conjunct pool]
-  (PrologConjunct. (mapv #(=term= % pool) (:elems conjunct))))
-
-(defn =disjunct=
-  [disjunct pool]
-  (PrologDisjunct. (mapv #(=term= % pool) (:elems disjunct))))
-
-
-(defn generate-conjunct
-  [conjunct names]
-  (let [[new-elems new-names] (generate-vector (:elems conjunct)
-                                               names)]
-    [(PrologConjunct. new-elems) new-names]))
-
-(defn generate-disjunct
-  [disjunct names]
-  (let [[new-elems new-names] (generate-vector (:elems disjunct)
-                                               names)]
-    [(PrologDisjunct. new-elems) new-names]))
-
-
-(defn get-conjunct-variables
-  [conjunct]
-  (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:elems conjunct)))
-
-(defn get-disjunct-variables
-  [disjunct]
-  (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:elems disjunct)))
-
-
-(defn output-conjunct
-  [conjunct]
-  (loop [out "("
-         elems (:elems conjunct)]
-    (if (empty? (rest elems))
-      (str out
-           (output-term (first elems))
-           ")")
-      (let [out-elem (output-term (first elems))]
-        (recur (str out out-elem ", ")
-               (rest elems))))))
-
-(defn output-disjunct
-  [disjunct]
-  (loop [out "("
-         elems (:elems disjunct)]
-    (if (empty? (rest elems))
-      (str out
-           (output-term (first elems))
-           ")")
-      (let [out-elem (output-term (first elems))]
-        (recur (str out out-elem "; ")
-               (rest elems))))))
 
 
 ;; ===============================================================================
@@ -710,13 +648,22 @@
      new-names]))
 
 
+(extend-protocol TermInterface
+  logic.term.PrologRule
+
+  (output [x]
+    (str (output (:head x))
+         " :- "
+         (output (:body x)))))
+
+
 
 ;; ============================================================================
 ;;  PrologMath: 1 + 2, X is 5 + 3.
 ;;
 ;;                                 +       is
-;;                                / \  ,  /  \
-;;  Actualy, it looks more like: 1   2   X    +
+;;                                / \     /  \
+;;  Actualy, it looks more like: 1   2 , X    +
 ;;                                           / \
 ;;                                          5   3
 ;;
