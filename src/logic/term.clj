@@ -12,7 +12,7 @@
 (def output-term)
 (def =term=)
 (def >term<)
-(def get-term-vars)
+(def get-term-variables)
 
 
 (defn generate-vector
@@ -317,7 +317,7 @@
    :else
      (unify-terms tail-x tail-y pool)))
 
-(defn get-list-vars
+(defn get-list-variables
   [list]
   (let [head-vars (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:head list))]
     (if (same? [] (:tail list))
@@ -498,6 +498,14 @@
        ")"))
 
 
+(defn get-arguments-variables
+  [args]
+  (reduce #(clojure.set/union %1
+                              (get-term-variables %2))
+          #{}
+          (:args args)))
+
+
 ;; ===========================================================================
 ;;  Prolog Fact: cat(tom). member(X, Y).
 ;;  Each fact has a name and arguments.
@@ -541,6 +549,11 @@
           [false pool]
           [(PrologFact. new-name new-args)
            new-pool])))))
+
+
+(defn get-fact-variables
+  [fact]
+  (get-arguments-variables (:args args)))
 
 
 (defn output-fact [fact]
@@ -606,11 +619,11 @@
     [(PrologDisjunct. new-elems) new-names]))
 
 
-(defn get-conjunct-vars
+(defn get-conjunct-variables
   [conjunct]
   (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:elems conjunct)))
 
-(defn get-disjunct-vars
+(defn get-disjunct-variables
   [disjunct]
   (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:elems disjunct)))
 
@@ -743,7 +756,7 @@
                   new-right)
      names-right]))
 
-(defn get-math-vars [math]
+(defn get-math-variables [math]
   (clojure.set/union (get-term-vars (:left math))
                      (get-term-vars (:right math))))
 
@@ -836,7 +849,7 @@
          new-pool]))))
 
 
-(defn get-method-vars
+(defn get-method-variables
   [method]
   (reduce #(clojure.set/union %1 (get-term-vars %2)) #{} (:args method)))
 
@@ -1013,33 +1026,35 @@
      term))
 
 
-(defn get-term-vars
+(defn get-term-variables
+  "Returns a set of the variables, used by the given term.
+  If the term uses no variables, it's logical to return an empty set."
   [term]
   (cond
+
    (prolog-variable? term)
      #{(:name term)}
+
    (prolog-list? term)
-     (get-list-vars term)
-   (prolog-structure? term)
-     (get-structure-vars term)
+     (get-list-variables term)
+
+   (prolog-fact? term)
+     (get-fact-variables term)
+
    (prolog-conjunct? term)
-     (get-conjunct-vars term)
+     (get-conjunct-variables term)
+
    (prolog-disjunct? term)
-     (get-disjunct-vars term)
+     (get-disjunct-variables term)
+
    (prolog-method? term)
-     (get-method-vars term)
+     (get-method-variables term)
+
    (prolog-math? term)
-     (get-math-vars term)
+     (get-math-variables term)
+
    :else
      #{}))
 
 
-(defn match-structure->term
-  [struct term pool]
-  (cond
-   (prolog-functor? term)
-     (match-structure->functor struct term pool)
-   :else
-     (throw (Exception. (str "A PrologStructure cannot be matched to a "
-                             (type term)
-                             "!")))))
+(get-term-variables (>term< [:%fact% "member" [:A [:A :| :L]]]))
