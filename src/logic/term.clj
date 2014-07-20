@@ -1,3 +1,9 @@
+;; TermInterface of the PrologArguments
+;; TermInterface of the PrologList
+;; Do it better.
+;; Do it better-er.
+;; TermInterface variables with the new unification method.
+
 ;; ==========================================================================
 ;;  This file contains all types of Terms that Prolog uses in order to work.
 ;; ==========================================================================
@@ -7,33 +13,12 @@
             [clojure.set]])
 
 
-(def unify-terms)
-(def generate-term)
-(def output-term)
-(def =term=)
-(def >term<)
-(def get-term-variables)
-
-(defprotocol TermInterface
+(defprotocol
+  (create [input])
   (unify [x y pool])
-  (output [term])
+  (output [term pool])
   (generate [term names])
   (get-variables [term]))
-
-
-(defn generate-vector
-  [elems pool]
-  (loop [new-elems []
-        old-elems elems
-        new-pool pool]
-    (if (empty? old-elems)
-      [new-elems new-pool]
-      (let [elem (first old-elems)
-            [new-elem newer-pool] (generate-term elem new-pool)]
-        (recur (conj new-elems new-elem)
-               (rest old-elems)
-               newer-pool)))))
-
 
 
 ;; ===========================================================================
@@ -46,7 +31,7 @@
 (defrecord PrologAtom [name])
 
 
-(defn >atom< [name]
+(defn create-atom [name]
   (if (re-matches (re-pattern #"[a-z][a-zA-Z_]*|'[^']+'") name)
     (PrologAtom. name)
     (throw (Exception. (str name " is invalid PrologAtom name!")))))
@@ -56,26 +41,46 @@
   (same? (type atom) logic.term.PrologAtom))
 
 
+(defn unify-atoms
+  "Two atom unify if they have exactly the same names, or one is the same placed in ' '."
+  [x y pool]
+  ;; Removing the ' ' and checking if the results are the same.
+  (let [name-x (re-find (re-pattern #"[^']+") (:name x))
+        name-y (re-find (re-pattern #"[^']+") (:name y))]
+    (if (same? name-x name-y)
+      [(>atom< name-x) pool]
+      [false pool])))
+
+
+(defn generate-atom [atom names]
+  [atom names])
+
+
+(defn output-atom [atom pool]
+  (:name atom))
+
+
 (extend-protocol TermInterface
   logic.term.PrologAtom
 
   (unify
-   [x y pool]
-   (if (prolog-atom? y)
-     (let [name-x (re-find (re-pattern #"[^']+") (:name x))
-           name-y (re-find (re-pattern #"[^']+") (:name y))]
-       (if (same? name-x name-y)
-         [(>atom< name-x) pool]
-         [false pool]))
+   [atom-x atom-y pool]
+   (if (prolog-atom? atom-y)
+     (unify-atoms atom-x atom-y pool)
      [false pool]))
 
-  (generate [atom names]
-    [atom names])
+  (generate
+   [atom names]
+   (generate-atom atom names)
 
-  (output [atom]
-    (:name atom))
+  (output
+   [atom pool]
+   (output-atom pool))
 
-  (get-variables [atom] #{}))
+  (get-variables
+   [atom]
+   ;; An Atom holds no Variables.
+   #{})))
 
 
 
@@ -286,16 +291,18 @@
 ;; ===========================================================================
 ;;  PrologArguments: (Var, atom, [1,2 | [3]]).
 ;;
+;;  It's a list of Prolog Terms.
+;;
 (defrecord PrologArguments [args])
 
 
-(defn >arguments< [args]
-  (PrologArguments. (mapv >term< args)))
+(defn create-arguments [args]
+  (PrologArguments. (mapv create-term args)))
 
 
-(defn =arguments= [args pool]
-  (PrologArguments. (mapv #(=term= % pool)
-                          (:args args))))
+(defn prolog-arguments? [term]
+  (= (type term)
+     logic.term.PrologArguments))
 
 
 (defn generate-arguments [args names]
@@ -309,44 +316,43 @@
     [(PrologArguments. new-args) new-names]))
 
 
-(defn unify-arguments [args-x args-y pool]
-  (let [elems-x (:args args-x)
-        elems-y (:args args-y)]
-    (if (different? (count elems-x)
-                    (count elems-y))
-      [false pool]
-      (let [[new-args new-pool]
-             (->>
-              (mapv #(vector %1 %2) elems-x elems-y)
-              (reduce
-               (fn [[res pool] [term-x term-y]]
-                 (if (false? res)
-                   [false pool]
-                   (let [[new-term new-pool] (unify-terms term-x term-y pool)]
-                     (if (false? new-term)
-                       [false pool]
-                       [(conj res new-term)
-                        new-pool]))))
-               [[] pool]))]
-        [(PrologArguments. new-args)
-         new-pool]))))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologArguments
-
-  (unify [args-x args-y pool]
-    (if (different? (count (:args args-x))
-                    (count (:args args-x)))
+(defn unify-arguments
+  "Two Arguments lists unify if each twoplet of elements unify."
+  [args-x args-y pool]
+  (if (different? (count (:args args-x))
+                    (count (:args args-y)))
       [false pool]
       (->>
        (mapv vector
              (:args args-x)
              (:args args-y))
-       ))))
+       (reduce (fn [[args pool] [x y]]
+                 (if (false? args)
+                   [false pool]
+                   (let [[z new-pool] (unify x y pool)]
+                     (if (false? z)
+                       [false pool]
+                       [(conj args z)
+                        new-pool]))))
+               [[] pool])
+       (#(if (false? (first %))
+           [false pool]
+           [(PrologArguments. (first %))
+            (second %)])))))
+
 
 (extend-protocol TermInterface
   logic.term.PrologArguments
+
+  (unify
+   [args-x args-y pool]
+     (if (prolog-arguments? args-y)
+       (unify-arguments args-x args-y pool)
+       [false pool]))
+
+
+  (generate [args names]
+    (generate-arguments args names))
 
   (output [x]
     (str "("
@@ -917,10 +923,6 @@
      (>number< inp)
    (vector? inp)
      (cond
-      (same? :#con (first inp))
-        (>conjunct< inp)
-      (same? :#dis (first inp))
-        (>disjunct< inp)
       (same? :%fact% (first inp))
         (>fact< inp)
       (same? :%rule% (first inp))
@@ -939,43 +941,6 @@
      (>atom< inp)
    (A-Z? inp)
      (>variable< inp)))
-
-
-(defn output-term
-  [term]
-  (cond
-   (prolog-variable? term)
-     (output-variable term)
-
-   (prolog-atom? term)
-     (output-atom term)
-
-   (prolog-number? term)
-     (output-number term)
-
-   (prolog-string? term)
-     (output-string term)
-
-   (prolog-list? term)
-     (output-list term)
-
-   (prolog-fact? term)
-     (output-fact term)
-
-   (prolog-conjunct? term)
-     (output-conjunct term)
-
-   (prolog-disjunct? term)
-     (output-disjunct term)
-
-   (prolog-method? term)
-     (output-method term)
-
-   (prolog-math? term)
-     (output-math term)
-
-   :else
-     term))
 
 
 (defn get-term-variables
