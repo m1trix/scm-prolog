@@ -1,6 +1,4 @@
 ;; TODO LIST:
-  ;; Finish PrologNumber and PrologString TermInterface protocol.
-  ;; TermInterface of the PrologArguments
   ;; TermInterface of the PrologList
   ;; Do it better.
   ;; Do it better-er.
@@ -356,23 +354,12 @@
 
 
 (defn create-arguments [args]
-  (PrologArguments. (mapv create-term args)))
+  (PrologArguments. (mapv create args)))
 
 
 (defn prolog-arguments? [term]
   (= (type term)
      logic.term.PrologArguments))
-
-
-(defn generate-arguments [args names]
-  (let [[new-args new-names]
-        (reduce
-         (fn [[res names] term]
-           (let [[new-term new-names]
-                 (generate-term term names)]
-             [(conj res new-term) new-names]))
-         [[] names] (:args args))]
-    [(PrologArguments. new-args) new-names]))
 
 
 (defn unify-arguments
@@ -400,6 +387,38 @@
             (second %)])))))
 
 
+(defn generate-arguments
+  "Returns a new Prolog Arguments list with new names generated for the unique Variables."
+  [args names]
+    (let [[new-args new-names]
+        (reduce
+         (fn [[res names] term]
+           (let [[new-term new-names]
+                 (generate-term term names)]
+             [(conj res new-term) new-names]))
+         [[] names] (:args args))]
+    [(PrologArguments. new-args) new-names]))
+
+
+(defn output-arguments
+  "Returns a string with the output form of the given Arguments list."
+  [args pool]
+  (str "("
+       (when-not (empty? (:args x))
+         (reduce #(str %1 ", " (output %2))
+                 (output (first (:args x)) pool)
+                 (rest (:args x))))
+       ")"))
+
+
+(defn get-arguments-variables
+  "Returns a set of all Variables holded by the Arguments list."
+  [args]
+  (reduce clojure.set/union
+          #{}
+          (get-variables (:args args))))
+
+
 (extend-protocol TermInterface
   logic.term.PrologArguments
 
@@ -409,23 +428,17 @@
        (unify-arguments args-x args-y pool)
        [false pool]))
 
+  (generate
+   [args names]
+   (generate-arguments args names))
 
-  (generate [args names]
-    (generate-arguments args names))
+  (output
+   [args pool]
+   (output-arguments args pool))
 
-  (output [x]
-    (str "("
-         (when-not (empty? (:args x))
-           (reduce #(str %1 ", " (output %2))
-                   (output (first (:args x)))
-                   (rest (:args x))))
-         ")"))
-
-  (get-variables [args]
-    (reduce #(clojure.set/union %1
-              (get-variables %2))
-            #{}
-            (:args args))))
+  (get-variables
+   [args]
+   (get-arguments-variables args)))
 
 
 
