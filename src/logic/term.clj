@@ -14,7 +14,7 @@
             [clojure.set]])
 
 
-(defprotocol
+(defprotocol TermInterface
   (create [input])
   (unify [x y pool])
   (output [term pool])
@@ -76,7 +76,7 @@
 
   (generate
    [atom names]
-   (generate-atom atom names)
+   (generate-atom atom names))
 
   (output
    [atom pool]
@@ -85,7 +85,7 @@
   (get-variables
    [atom]
    ;; An Atom holds no Variables.
-   #{})))
+   #{}))
 
 
 
@@ -404,11 +404,13 @@
   "Returns a string with the output form of the given Arguments list."
   [args pool]
   (str "("
-       (when-not (empty? (:args x))
+       (when-not (empty? (:args args))
          (reduce #(str %1 ", " (output %2))
                  (output (first (:args x)) pool)
                  (rest (:args x))))
        ")"))
+
+(output-arguments (create-arguments [1 2 3]) {})
 
 
 (defn get-arguments-variables
@@ -453,7 +455,7 @@
 (defrecord PrologList [head tail])
 
 
-(defn >list< [elems]
+(defn create-list [elems]
   (loop [new-head []
          old-head elems]
     (if (empty? old-head)
@@ -463,8 +465,8 @@
           (let [last (second old-head)]
             (if (= second [])
               (PrologList. new-head [])
-              (PrologList. new-head (>term< last))))
-          (recur (conj new-head (>term< elem))
+              (PrologList. new-head (create last))))
+          (recur (conj new-head (create elem))
                  (rest old-head)))))))
 
 
@@ -516,120 +518,22 @@
      [false pool]
 
    :else
-     (->>
-      (min (count (:head list-x))
-           (count (:head list-y)))
-      (#(vector (subvec (:head list-x) 0 %)
-                (subvec (:head list-y) 0 %)))
-      (#(unify (PrologArguments. (first %1))
-               (PrologArguments. (second %1))
-               pool))
-      (#([(PrologList. (first %) []) (second %)])))))
+     (let [size (min (count (:head list-x))
+                     (count (:head list-y)))
+           [new-head head-pool] (->>
+                                 (vector (subvec (:head list-x) 0 size)
+                                         (subvec (:head list-y) 0 size))
+                                 (#(unify (PrologArguments. (first %))
+                                          (PrologArguments. (second %))
+                                          pool)))]
+       (if (false? new-head)
+         [false pool]
+         [(PrologList. (:args new-head) [])
+          head-pool]))))
 
-
-(defn =list=
-  "Replaces all of the list's variables with thieir values from the pool."
-  [list pool]
-  (let [new-head (mapv #(=term= % pool) (:head list))]
-    (if (same? [] (:tail list))
-      (refactor-list (PrologList. new-head []))
-      (refactor-list (PrologList. new-head (=term= (:tail list)
-                                    pool))))))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologList
-
-  (unify [x y pool]
-    (let [size (min (count (:head x))
-                    (count (:head y)))
-
-          [new-head head-pool]
-          (->>
-           (mapv #(vector %1 %2)
-                 (subvec (:head x) 0 size)
-                 (subvec (:head y) 0 size))
-           (reduce (fn [[head pool] [elem-x elem-y]]
-                     (if (false? head)
-                       [head pool]
-                       (let [[new-elem new-pool]
-                             (unify elem-x elem-y pool)]
-                         (if (false? new-elem)
-                           [false pool]
-                           [(conj head new-elem)
-                            new-pool]))))
-                  [[] pool]))]
-      (if (false? new-head)
-        [false pool]
-        (let [[new-tail tail-pool]
-              (unify (PrologList.
-                      (subvec (:head x)
-                              size)
-                      (:tail x))
-
-                     (PrologList.
-                      (subvec (:head y)
-                              size)
-                      (:tail y))
-
-                     head-pool)]
-          (if (false? new-tail)
-            [false pool]
-            [(refactor-list
-              (PrologList. new-head
-                           new-tail))
-             tail-pool]))))))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologList
-
-  (output [list]
-    (let [head (:head list)
-          tail (:tail list)]
-      (str "["
-           (when-not (empty? head)
-             (reduce #(str %1 ", " (output %2))
-                     (output (first head))
-                     (rest head)))
-           (when-not (empty? tail)
-             (str " | "(output tail)))
-           "]"))))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologList
-
-  (generate [list names]
-    (let [[new-head head-names]
-          (reduce (fn [[res names] elem]
-                    (let [[new-elem new-names]
-                          (generate elem names)]
-                      [(conj res new-elem)
-                       new-names]))
-                  [[] names]
-                  (:head list))]
-      (if (= [] (:tail list))
-        [(PrologList. new-head [])
-         head-names]
-        (let [[new-tail tail-names]
-              (generate (:tail list)
-                        head-names)]
-          [(PrologList. new-head new-tail)
-           tail-names])))))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologList
-
-  (get-variables [list]
-    (reduce #(clojure.set/union
-              %1
-              (get-variables %2))
-            (if (= [] (:tail list))
-              #{}
-              (get-variables (:tail list)))
-            (:head list))))
+(unify-lists (create [1 2 :| [3]])
+             (create [1 2 3])
+             {})
 
 
 
@@ -887,3 +791,30 @@
 (defn output-method [method]
   (str (keyword->string (:name method))
        (output-arguments (:args method))))
+
+
+
+
+
+
+
+
+
+
+
+(extend-protocol TermInterface
+  String
+  (create [inp]
+    (create-atom inp))
+
+  Number
+  (create [inp]
+    (create-number inp))
+
+  clojure.lang.PersistentVector
+  (create [inp]
+    (cond
+     (= :%fact% (first inp))
+       []
+     :else
+       (create-list inp))))
