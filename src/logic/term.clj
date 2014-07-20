@@ -1,8 +1,11 @@
-;; TermInterface of the PrologArguments
-;; TermInterface of the PrologList
-;; Do it better.
-;; Do it better-er.
-;; TermInterface variables with the new unification method.
+;; TODO LIST:
+  ;; Finish PrologNumber and PrologString TermInterface protocol.
+  ;; TermInterface of the PrologArguments
+  ;; TermInterface of the PrologList
+  ;; Do it better.
+  ;; Do it better-er.
+  ;; TermInterface of the PrologVariable with the new unification method.
+  ;; Fix the Atom unification bug with the names.
 
 ;; ==========================================================================
 ;;  This file contains all types of Terms that Prolog uses in order to work.
@@ -42,7 +45,7 @@
 
 
 (defn unify-atoms
-  "Two atom unify if they have exactly the same names, or one is the same placed in ' '."
+  "Two atoms unify if they have exactly the same names, or one is the same placed in ' '."
   [x y pool]
   ;; Removing the ' ' and checking if the results are the same.
   (let [name-x (re-find (re-pattern #"[^']+") (:name x))
@@ -52,11 +55,15 @@
       [false pool])))
 
 
-(defn generate-atom [atom names]
+(defn generate-atom
+  "An Atom holds no variables, so it remains the same."
+  [atom names]
   [atom names])
 
 
-(defn output-atom [atom pool]
+(defn output-atom
+  "An Atom is printed as it's name."
+  [atom pool]
   (:name atom))
 
 
@@ -88,17 +95,41 @@
 ;;  Prolog Numbers: 1, 5.5.
 ;;  They are just numbers.
 ;;
+;;  Numbers can be used in mathematical expressions.
+;;
 (defrecord PrologNumber [value])
 
 
-(defn >number< [n]
+(defn create-number [n]
   (if (number? n)
     (PrologNumber. n)
     (throw (Exception. (str n " is illegal PrologNumber value!")))))
 
 
 (defn prolog-number? [number]
-  (same? (type number) logic.term.PrologNumber))
+  (same? (type number)
+         logic.term.PrologNumber))
+
+
+(defn unify-numbers
+  "Two Numbers unify if their values are equal."
+  [x y pool]
+  (if (= (:value x)
+         (:value y))
+    [x pool]
+    [false pool]))
+
+
+(defn output-number
+  "A Number is printed as it's value."
+  [num pool]
+  (str (:value num)))
+
+
+(defn generate-number
+  "A Number holds no Variables, so it remains exactily the same."
+  [num names]
+  [num names])
 
 
 (extend-protocol TermInterface
@@ -106,18 +137,22 @@
 
   (unify
    [x y pool]
-   (if (and (prolog-number? y)
-            (same? (:value x) (:value y)))
-     [x pool]
+   (if (prolog-number? y)
+     (unify-numbers x y pool)
      [false pool]))
 
-  (generate [num names]
-    [num names])
+  (output
+   [num pool]
+   (output-number num pool))
 
-  (output [num]
-    (str (:value num)))
+  (generate
+   [num names]
+   (generate-number num names))
 
-  (get-variables [num] #{}))
+  (get-variables
+   ;; A Number holds no variables.
+   [num]
+   #{}))
 
 
 
