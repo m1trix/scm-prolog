@@ -1,5 +1,4 @@
 ;; TODO LIST:
-  ;; TermInterface of the PrologList
   ;; Do it better.
   ;; Do it better-er.
   ;; TermInterface of the PrologVariable with the new unification method.
@@ -17,7 +16,7 @@
 (defprotocol TermInterface
   (create [input])
   (unify [x y pool])
-  (output [term pool])
+  (output [term])
   (generate [term names])
   (get-variables [term]))
 
@@ -61,7 +60,7 @@
 
 (defn output-atom
   "An Atom is printed as it's name."
-  [atom pool]
+  [atom]
   (:name atom))
 
 
@@ -79,8 +78,8 @@
    (generate-atom atom names))
 
   (output
-   [atom pool]
-   (output-atom pool))
+   [atom]
+   (output-atom atom))
 
   (get-variables
    [atom]
@@ -120,7 +119,7 @@
 
 (defn output-number
   "A Number is printed as it's value."
-  [num pool]
+  [num]
   (str (:value num)))
 
 
@@ -140,8 +139,8 @@
      [false pool]))
 
   (output
-   [num pool]
-   (output-number num pool))
+   [num]
+   (output-number num))
 
   (generate
    [num names]
@@ -186,7 +185,7 @@
 
 (defn output-string
   "A Prolog String is printed as the string it represents."
-  [str pool]
+  [str]
   (:string str))
 
 
@@ -394,7 +393,7 @@
         (reduce
          (fn [[res names] term]
            (let [[new-term new-names]
-                 (generate-term term names)]
+                 (generate term names)]
              [(conj res new-term) new-names]))
          [[] names] (:args args))]
     [(PrologArguments. new-args) new-names]))
@@ -402,11 +401,11 @@
 
 (defn output-arguments
   "Returns a string with the output form of the given Arguments list."
-  [args pool]
+  [args]
   (str "("
        (when-not (empty? (:args args))
          (reduce #(str %1 ", " (output %2))
-                 (output (first (:args x)) pool)
+                 (output (first (:args x)))
                  (rest (:args x))))
        ")"))
 
@@ -435,8 +434,8 @@
    (generate-arguments args names))
 
   (output
-   [args pool]
-   (output-arguments args pool))
+   [args]
+   (output-arguments args))
 
   (get-variables
    [args]
@@ -475,35 +474,22 @@
          logic.term.PrologList))
 
 
-(defn unify-tails
-  "Unifies the tails of two PrologLists"
-  [tail-x tail-y pool]
-  (cond
-
-   (and (same? tail-x [])
-        (same? tail-y []))
-     [[] pool]
-
-   (same? tail-x [])
-     (if (prolog-variable? tail-y)
-       (unify-terms tail-y (>list< []) pool)
-       [false pool])
-
-   (same? tail-y [])
-     (if (prolog-variable? tail-x)
-       (unify-terms tail-x (>list< []) pool))
-
-   :else
-     (unify-terms tail-x tail-y pool)))
-
-(defn refactor-list
+(defn reconstruct-list
+  "Recreates the same List with a simpler structure (if it's possible)."
   [list]
-  (if (prolog-list? (:tail list))
-    (let [new-list (refactor-list (:tail list))]
-      (PrologList. (vec (concat (:head list)
-                                (:head new-list)))
-                   (:tail new-list)))
-    list))
+  (if (= [] (:head list))
+    ;; Empty head -> only the tail remains.
+    (if (= [] (:tail list))
+      (PrologList. [] [])
+      (:tail list))
+
+    (if (prolog-list? (:tail list))
+      (let [new-tail (reconstruct-list (:tail list))]
+        (PrologList. (vec (concat (:head list)
+                                  (:head new-tail)))
+                     (:tail new-tail)))
+      ;; If the tail is not another list, the structure cannot be changed.
+      list)))
 
 
 (defn unify-lists
@@ -528,14 +514,75 @@
                                           pool)))]
        (if (false? new-head)
          [false pool]
-         [(PrologList. (:args new-head) [])
-          head-pool]))))
+         (let [rest-x (subvec (:head list-x) size)
+               rest-y (subvec (:head list-y) size)
+               [new-tail tail-pool] (unify (reconstruct-list
+                                            (PrologList. rest-x
+                                                         (:tail list-x)))
+                                           (reconstruct-list
+                                            (PrologList. rest-y
+                                                         (:tail list-y)))
+                                            head-pool)]
+           (if (false? new-tail)
+             [false pool]
+             [(reconstruct-list
+               (PrologList. (:args new-head) new-tail))
+              tail-pool]))))))
 
-(unify-lists (create [1 2 :| [3]])
-             (create [1 2 3])
-             {})
+
+(defn get-list-variables [list]
+  (reduce #(clojure.set/union %1 (get-variables %2))
+          (if (= [] (:tail list))
+            #{}
+            (get-variables (:tail list)))
+          (:head list)))
 
 
+(defn generate-list [list names]
+  (let [[new-head head-names] (->
+                              (PrologArguments. (:head list))
+                              (generate names)
+                              (#(vector (:args (first %))
+                                        (second %))))]
+    (if (= [] (:tail list))
+      [(PrologList. new-head [])
+       head-names]
+      (let [[new-tail tail-names] (generate (:tail list)
+                                            head-names)]
+        [(PrologList. new-head new-tail)
+         tail-names]))))
+
+
+(defn output-list [list]
+  (str "["
+       (when-not (= [] (:head list))
+         (reduce #(str %1 ", " (output %2))
+                 (output (first (:head list)))
+                 (rest (:head list))))
+       (when-not (= [] (:tail list))
+         (str " | "
+              (output (:tail list))))
+       "]"))
+
+
+(extend-protocol TermInterface
+  logic.term.PrologList
+
+  (unify [x y pool]
+    (if (prolog-list? y)
+      (unify-lists x y pool)
+      [false pool]))
+
+  (get-variables
+   [list]
+   (get-list-variables list))
+
+  (generate
+   [list names]
+   (generate-list list names))
+
+  (output [list]
+    (output-list list)))
 
 ;; ===========================================================================
 ;;  Prolog Fact: cat(tom). member(X, Y).
