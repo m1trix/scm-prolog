@@ -162,32 +162,56 @@
 (defrecord PrologString [string])
 
 
-(defn >string< [s]
+(defn create-string [s]
   (if (string? s)
     (PrologString. s)
     (throw (Exception. (str s " is illegal PrologString value.")))))
 
 
 (defn prolog-string? [string]
-  (same? (type string) logic.term.PrologString))
+  (same? (type string)
+         logic.term.PrologString))
+
+
+(defn unify-strings [x y pool]
+  (if (= (:string x)
+         (:string y))
+    [x pool]
+    [false pool]))
+
+
+(defn generate-string
+  "A String holds no variables, so it remains the same"
+  [str pool]
+  [str pool])
+
+
+(defn output-string
+  "A Prolog String is printed as the string it represents."
+  [str pool]
+  (:string str))
+
 
 (extend-protocol TermInterface
   logic.term.PrologString
 
   (unify [x y pool]
-    (if (and (prolog-string? y)
-             (same? (:string x)
-                    (:string y)))
-      [x pool]
+    (if (prolog-string? y)
+      (unify-strings x y pool)
       [false pool]))
 
-  (generate [s names]
-    [s names])
+  (generate
+   [s names]
+   (generate-string s names))
 
-  (output [s]
-    (str "\"" (:string s) "\""))
+  (output
+   [s]
+   (str "\"" (:string s) "\""))
 
-  (get-variables [s] #{}))
+  (get-variables
+   [s]
+   ;; A String holds no Variables.
+   #{}))
 
 
 
@@ -850,160 +874,3 @@
 (defn output-method [method]
   (str (keyword->string (:name method))
        (output-arguments (:args method))))
-
-
-
-;; ============================================================================
-;;  Common PrologTerm functions.
-;;  They create a "polymorphism" between PrologTerms.
-;;
-
-
-(defn =term=
-  "Recognizes the type of a term and evaluates it according to it's specific needs."
-  [term pool]
-  (cond
-
-   (prolog-list? term)
-     (=list= term pool)
-
-   (prolog-fact? term)
-     (=fact= term pool)
-
-   (prolog-variable? term)
-     (=variable= term pool)
-
-   (prolog-conjunct? term)
-     (=conjunct= term pool)
-
-   (prolog-disjunct? term)
-     (=disjunct= term pool)
-
-   (prolog-method? term)
-     (=method= term pool)
-
-   (prolog-math? term)
-     (=math= term pool)
-
-   :else
-     term))
-
-
-(defn generate-term
-  [term names]
-  (cond
-
-   (prolog-variable? term)
-     (generate-variable term names)
-
-   (prolog-list? term)
-     (generate-list term names)
-
-   (prolog-fact? term)
-     (generate-fact term names)
-
-   (prolog-rule? term)
-     (generate-rule term names)
-
-   (prolog-conjunct? term)
-     (generate-conjunct term names)
-
-   (prolog-disjunct? term)
-     (generate-disjunct term names)
-
-   (prolog-method? term)
-     (generate-method term names)
-
-   (prolog-math? term)
-     (generate-math term names)
-   :else
-     [term names]))
-
-
-(defn unify-terms
-  [term-x term-y pool]
-  (cond
-
-   (and (prolog-variable? term-x)
-        (prolog-variable? term-y))
-     (unify-variables term-x term-y pool)
-   (prolog-variable? term-x)
-     (=variable= term-x term-y pool)
-   (prolog-variable? term-y)
-     (=variable= term-y term-x pool)
-   (different? (type term-x)
-               (type term-y))
-     [false pool]
-   (prolog-atom? term-x)
-     (unify-atoms term-x term-y pool)
-   (prolog-number? term-x)
-     (unify-numbers term-x term-y pool)
-   (prolog-string? term-x)
-     (unify-strings term-x term-y pool)
-   (prolog-list? term-x)
-     (unify-lists term-x term-y pool)
-   (prolog-fact? term-x)
-     (unify-facts term-x term-y pool)
-   (prolog-method? term-x)
-     (unify-methods term-x term-y pool)))
-
-
-(defn >term<
-  "Creates a term from the input."
-  [inp]
-  (cond
-   (nil? inp)
-     (throw (Exception. "One does not simply create a PrologTerm from a nil!"))
-   (number? inp)
-     (>number< inp)
-   (vector? inp)
-     (cond
-      (same? :%fact% (first inp))
-        (>fact< inp)
-      (same? :%rule% (first inp))
-        (>rule< inp)
-      (same? :#met (first inp))
-        (>method< inp)
-      (same? :#math (first inp))
-        (>math< inp)
-      :else
-        (>list< inp))
-   (string? inp)
-     (>string< inp)
-   (same? :_ inp)
-     (PrologVariable. (keyword (gensym)))
-   (a-z? inp)
-     (>atom< inp)
-   (A-Z? inp)
-     (>variable< inp)))
-
-
-(defn get-term-variables
-  "Returns a set of the variables, used by the given term.
-  If the term uses no variables, it's logical to return an empty set."
-  [term]
-  (cond
-
-   (prolog-variable? term)
-     #{(:name term)}
-
-   (prolog-list? term)
-     (get-list-variables term)
-
-   (prolog-fact? term)
-     (get-fact-variables term)
-
-   (prolog-conjunct? term)
-     (get-conjunct-variables term)
-
-   (prolog-disjunct? term)
-     (get-disjunct-variables term)
-
-   (prolog-method? term)
-     (get-method-variables term)
-
-   (prolog-math? term)
-     (get-math-variables term)
-
-   :else
-     #{}))
