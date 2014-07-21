@@ -390,11 +390,9 @@
   (str "("
        (when-not (empty? (:args args))
          (reduce #(str %1 ", " (output %2))
-                 (output (first (:args x)))
-                 (rest (:args x))))
+                 (output (first (:args args)))
+                 (rest (:args args))))
        ")"))
-
-(output-arguments (create-arguments [1 2 3]) {})
 
 
 (defn get-arguments-variables
@@ -581,58 +579,69 @@
 (defrecord PrologFact [atom args])
 
 
-(defn >fact< [[sign atom args]]
-  (if (same? sign :%fact%)
-    (PrologFact. (>atom< atom)
-                 (>arguments< args))
-    (throw (Exception. "To create a PrologFact from a vector, it must start with a :%fact%"))))
-
-
 (defn prolog-fact? [term]
   (same? (type term)
          logic.term.PrologFact))
 
 
-(defn =fact= [fact pool]
-  (PrologFact. (:atom fact)
-               (=arguments= (:args fact)
-                            pool)))
-
-(defn generate-fact
-  [fact names]
-  (generate-arguments
-   (:args fact)
-   names))
+(defn create-fact [[sign atom args]]
+  (if (= sign :%fact%)
+    (PrologFact. (create-atom atom)
+                 (create-arguments args))
+    (throw (Exception. "To create a Fact from a vector it must start with :%fact%."))))
 
 
 (defn unify-facts [fact-x fact-y pool]
-  (let [[new-name _] (unify-atoms (:atom fact-x)
-                                  (:atom fact-y)
-                                  pool)]
-    (if (false? new-name)
-      [false pool]
-      (let [[new-args new-pool] (unify-arguments (:args fact-x)
-                                                 (:args fact-y)
-                                                 pool)]
-        (if (false? new-args)
-          [false pool]
-          [(PrologFact. new-name new-args)
-           new-pool])))))
+  (if (false? (first (unify-atoms (:atom fact-x)
+                                  (:atom fact-y))))
+    [false pool]
+    (unify-arguments (:args fact-x)
+                     (:args fact-y)
+                     pool)))
 
 
-(defn get-fact-variables
-  [fact]
+(defn generate-fact [fact names]
+  (let [[new-args new-names] (generate-arguments
+                              (:args fact)
+                              names)]
+    [(PrologFact. (:atom fact)
+                 new-names)
+     new-names]))
+
+
+(defn get-fact-variables [fact]
   (get-arguments-variables (:args fact)))
+
+
+(defn output-fact [fact]
+  (str (output (:atom fact))
+       (output (:args fact))))
 
 
 (extend-protocol TermInterface
   logic.term.PrologFact
 
+  (unify
+   [x y pool]
+   (cond
+    (prolog-fact? y)
+      (unify-facts x y pool)
+    (prolog-variable? y)
+      (evaluate-variable y x pool)
+    :else
+      [false pool]))
 
-  (output [x]
-    (str (output-atom (:atom x))
-         (output-arguments (:args x)))))
+  (generate
+   [fact names]
+     (generate-fact fact names))
 
+  (get-variables
+   [fact]
+     (get-fact-variables fact))
+
+  (output
+   [fact]
+     (output-fact fact)))
 
 
 ;; ===============================================================================
@@ -861,6 +870,6 @@
   (create [inp]
     (cond
      (= :%fact% (first inp))
-       []
+       (create-fact inp)
      :else
        (create-list inp))))
