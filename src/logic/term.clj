@@ -1,7 +1,4 @@
 ;; TODO LIST:
-  ;; Do it better.
-  ;; Do it better-er.
-  ;; TermInterface of the PrologVariable with the new unification method.
   ;; Fix the Atom unification bug with the names.
 
 ;; ==========================================================================
@@ -19,6 +16,114 @@
   (output [term])
   (generate [term names])
   (get-variables [term]))
+
+
+
+;; ============================================================================
+;;  Prolog Variable: X. Whatever.
+;;
+;;  A Prolog Variable always starts with a capital letter.
+;;  It does not have a value when it is created, but it can be evaluated to
+;;  any Prolog Term. Once a value is given to a Variable, it cannot be changed.
+;;
+;;  The process of unifying two Variables is a process of binding them together.
+;;  That means that whenever one of them gets evaluated, the other is also
+;;  evaluated.
+;;
+(defrecord PrologVariable [name])
+
+
+(defn create-variable [var]
+  (if (re-matches (re-pattern #"[_A-Z][A-Za-z_]*") var)
+    (PrologVariable. var)
+    (throw (Exception. (str var " is invalid PrologVariable name!")))))
+
+
+(defn prolog-variable? [var]
+  (= (type var)
+     logic.term.PrologVariable))
+
+
+(defn generate-variable [var names]
+  (if (= (:name var) "_")
+    (let [new-name (str (gensym))]
+      [(PrologVariable. new-name)
+       (assoc
+         names
+         new-name
+         new-name)])
+    (if (nil? (get names (:name var)))
+
+      (let [new-name (str (gensym))]
+        [(PrologVariable. new-name)
+         (assoc
+           names
+           (:name var)
+           new-name)])
+
+      [(PrologVariable. (get names
+                             (:name var)))
+       names])))
+
+
+(defn get-variable-variables
+  "A PrologVariable holds only itself, but random variables are not important."
+  [var]
+  (if (= (:name var) "_")
+    #{}
+    #{var}))
+
+
+(defn output-variable [var]
+  (:name var))
+
+
+(defn evaluate-variable [var term pool]
+  (let [name (:name var)
+        val (get pool name)]
+    (if (nil? val)
+      [term (assoc pool name term)]
+      (unify val term pool))))
+
+
+(defn bind-variables
+  [var-x var-y pool]
+  (if (same? var-x var-y)
+    [var-x pool]
+    (let [name-x (:name var-x)
+          name-y (:name var-y)
+          val-x (get pool name-x)
+          val-y (get pool name-y)]
+      (if (nil? val-x)
+        (if (nil? val-y)
+          [var-x (assoc pool name-y var-x)]
+          (evaluate-variable var-x val-y pool))
+        (if (nil? val-y)
+          (evaluate-variable var-y val-x pool)
+          (unify val-x val-y pool))))))
+
+
+(extend-protocol TermInterface
+  logic.term.PrologVariable
+
+  (unify
+   [x y pool]
+   (if (prolog-variable? y)
+     (bind-variables x y pool)
+     (evaluate-variable x y pool)))
+
+  (generate
+   [var names]
+   (generate-variable var names))
+
+  (get-variables
+   [var]
+   (get-variable-variables var))
+
+  (output
+   [var]
+   (output-variable var)))
+
 
 
 ;; ===========================================================================
@@ -48,7 +153,8 @@
   (let [name-x (re-find (re-pattern #"[^']+") (:name x))
         name-y (re-find (re-pattern #"[^']+") (:name y))]
     (if (same? name-x name-y)
-      [(>atom< name-x) pool]
+      (if (re-find (re-pattern #"") ))
+      [(create name-x) pool]
       [false pool])))
 
 
@@ -69,8 +175,12 @@
 
   (unify
    [atom-x atom-y pool]
-   (if (prolog-atom? atom-y)
-     (unify-atoms atom-x atom-y pool)
+   (cond
+    (prolog-atom? atom-y)
+      (unify-atoms atom-x atom-y pool)
+    (prolog-variable? atom-y)
+      (evaluate-variable atom-y atom-x pool)
+    :else
      [false pool]))
 
   (generate
@@ -134,9 +244,14 @@
 
   (unify
    [x y pool]
-   (if (prolog-number? y)
-     (unify-numbers x y pool)
-     [false pool]))
+   (cond
+    (prolog-number? y)
+      (unify-numbers x y pool)
+    (prolog-variable? y)
+      (evaluate-variable y x pool)
+
+    :else
+      [false pool]))
 
   (output
    [num]
@@ -193,9 +308,13 @@
   logic.term.PrologString
 
   (unify [x y pool]
-    (if (prolog-string? y)
-      (unify-strings x y pool)
-      [false pool]))
+    (cond
+     (prolog-string? y)
+       (unify-strings x y pool)
+     (prolog-variable? y)
+       (evaluate-variable y x pool)
+     :else
+       [false pool]))
 
   (generate
    [s names]
@@ -210,104 +329,6 @@
    ;; A String holds no Variables.
    #{}))
 
-
-
-;; ============================================================================
-;;  Prolog Variable: X. Whatever.
-;;
-;;  A Prolog Variable always starts with a capital letter.
-;;  It does not have a value when it is created, but it can be evaluated to
-;;  any Prolog Term. Once a value is given to a Variable, it cannot be changed.
-;;
-;;  The process of unifying two Variables is a process of binding them together.
-;;  That means that whenever one of them gets evaluated, the other is also
-;;  evaluated.
-;;
-(defrecord PrologVariable [name])
-
-
-(defn create-variable [var]
-  (if (re-matches (re-pattern #"[_A-Z][A-Za-z_]*") var)
-    (PrologVariable. var)
-    (throw (Exception. (str var " is invalid PrologVariable name!")))))
-
-
-(defn generate-variable [var names]
-  (if (= (:name var) "_")
-    (let [new-name (str (gensym))]
-      [(PrologVariable. new-name)
-       (assoc
-         names
-         new-name
-         new-name)])
-    (if (nil? (get names (:name var)))
-
-      (let [new-name (str (gensym))]
-        [(PrologVariable. new-name)
-         (assoc
-           names
-           (:name var)
-           new-name)])
-
-      [(PrologVariable. (get names
-                             (:name var)))
-       names])))
-
-
-(defn get-variable-variables
-  "A PrologVariable holds only itself, but random variables are not important."
-  [var]
-  (if (= (:name var) "_")
-    #{}
-    #{var}))
-
-
-(defn output-variable [var]
-  (:name var))
-
-
-(defn evaluate-variable [var term pool])
-
-
-(defn bind-variables
-  [var-x var-y pool]
-  (let [name-x (:name var-x)
-        name-y (:name var-y)]
-    (cond
-     ;; BOTH ARE NOT YET EVALUATED.
-     (and (nil? (get pool name-x))
-          (nil? (get pool name-y)))
-       [var-x
-        (assoc pool name-y name-x)])))
-
-(unify (create "Pesho")
-       (create "Gosho")
-       {})
-
-({:A :BV} "ivo" )
-
-
-(extend-protocol TermInterface
-  logic.term.PrologVariable
-
-
-  (unify
-   [x y pool]
-   (if (prolog-variable? y)
-     (bind-variables x y pool)
-     (evaluate-variable x y pool)))
-
-  (generate
-   [var names]
-   (generate-variable var names))
-
-  (get-variables
-   [var]
-   (get-variable-variables var))
-
-  (output
-   [var]
-   (output-variable var)))
 
 
 ;; ===========================================================================
@@ -535,9 +556,13 @@
   logic.term.PrologList
 
   (unify [x y pool]
-    (if (prolog-list? y)
-      (unify-lists x y pool)
-      [false pool]))
+    (cond
+     (prolog-list? y)
+       (unify-lists x y pool)
+     (prolog-variable? y)
+       (evaluate-variable y x pool)
+     :else
+       [false pool]))
 
   (get-variables
    [list]
