@@ -1,6 +1,3 @@
-;; TODO LIST:
-  ;; Fix the Atom unification bug with the names.
-
 ;; ==========================================================================
 ;;  This file contains all types of Terms that Prolog uses in order to work.
 ;; ==========================================================================
@@ -153,8 +150,9 @@
   (let [name-x (re-find (re-pattern #"[^']+") (:name x))
         name-y (re-find (re-pattern #"[^']+") (:name y))]
     (if (same? name-x name-y)
-      (if (re-find (re-pattern #"") ))
-      [(create name-x) pool]
+      (if (re-matches (re-pattern #"[a-zA-Z_]+") name-x)
+        [(create-atom name-x) pool]
+        [(create-atom (str \' name-x \')) pool])
       [false pool])))
 
 
