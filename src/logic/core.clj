@@ -12,13 +12,10 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (let [query (>term< [:#con [:#str :nat [100]]])]
-    (println (output-term query))
+  (let [query (create [:fact "member" ["L" [1 2 3]]])]
+    (println (output query))
     (?- query))
 
-  (let [query (>term< [:#con [:#str :nat [:L]]])]
-    (println (output-term query))
-    (?- query))
 
   (let [input (atom "")]
     (while (different? @input "halt.")

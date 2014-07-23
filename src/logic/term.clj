@@ -637,9 +637,17 @@
   (output [fact] (output-fact fact)))
 
 
-(defn resolve-facts [fact-x fact-y pool]
+(defn resolve-facts [fact-x fact-y pool debug]
   (let [[new-fact new-pool]
         (unify-facts fact-x fact-y pool)]
+    (when debug
+      (println-gray (str (output fact-x)
+                         "~>"
+                         (output fact-y)
+                         " => "
+                         (if (false? new-fact)
+                           "false"
+                           "true"))))
     (if (false? new-fact)
       [false pool]
       [true new-pool])))
@@ -909,16 +917,6 @@
          logic.term.PrologRule))
 
 
-(defn match-fact->rule
-  [fact rule pool]
-  (let [[new-head new-pool]
-        (unify-facts fact (:head rule) pool)]
-    (if (false? new-head)
-      [false pool]
-      ;; TODO, it must get evaluated here.
-      [(PrologRule. new-head new-pool) new-pool])))
-
-
 (defn generate-rule
   [rule names]
   (let [[new-head head-names]
@@ -946,6 +944,14 @@
   (output
    [rule]
    (output-rule rule)))
+
+
+(defn resolve-fact->rule [fact rule pool debug]
+  (let [[result new-pool]
+        (resolve-facts fact (:head rule) pool debug)]
+    (if (false? result)
+      [false pool]
+      [(:body rule) new-pool])))
 
 
 
@@ -990,7 +996,17 @@
      :else
        (create-list inp))))
 
-(defn resolve [fact term pool]
+
+(extend-protocol TermInterface
+  java.lang.Boolean
+
+  (output [inp] (str inp)))
+
+
+
+(defn resolve [fact term pool debug]
   (cond
    (prolog-fact? term)
-     (resolve-facts fact term pool)))
+     (resolve-facts fact term pool debug)
+   (prolog-rule? term)
+     (resolve-fact->rule fact term pool debug)))
