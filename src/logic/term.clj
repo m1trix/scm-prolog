@@ -585,10 +585,10 @@
 
 
 (defn create-fact [[sign atom args]]
-  (if (= sign :%fact%)
+  (if (= sign :fact)
     (PrologFact. (create-atom atom)
                  (create-arguments args))
-    (throw (Exception. "To create a PrologFact from a vector it must start with :%fact%."))))
+    (throw (Exception. "To create a PrologFact from a vector it must start with :fact."))))
 
 
 (defn unify-facts [fact-x fact-y pool]
@@ -606,7 +606,7 @@
                               (:args fact)
                               names)]
     [(PrologFact. (:atom fact)
-                 new-names)
+                 new-args)
      new-names]))
 
 
@@ -646,67 +646,81 @@
 
 
 ;; ===============================================================================
-;;  PrologConjunction: member(L, [1,2]), member(L, [2,3]).
 ;;  PrologDisjunction: member(L, [1,2]); member(L, [2,3]).
-;;  PrologNegation:    not(member(1, [2,3])).
+;;
+(defrecord PrologDisjunction [terms])
+
+
+(defn create-disjunction [[sign & terms]]
+  (if (= sign :disj)
+    (PrologDisjunction. (mapv create terms))
+    (throw (Exception. "To create a PrologDisjunction from a vector it must start with :disj."))))
+
+
+(defn prolog-disjunction? [term]
+  (same? (type term)
+         logic.term.PrologDisjunction))
+
+
+(defn get-disjunction-variables [disj]
+  (reduce #(clojure.set/union %1 (get-variables %2)) #{} (:terms disj)))
+
+
+(defn generate-disjunction [disj names]
+  (let [[new-terms new-names]
+        (generate-arguments (PrologArguments. (:terms disj))
+                            names)]
+    [(PrologDisjunction. (:args new-terms))
+     new-names]))
+
+
+(defn output-disjunction [disj]
+  (if (empty? (:terms disj))
+    ""
+    (subs
+     (reduce #(str %1 "; " %2)
+             ""
+             (:terms disj))
+     2)))
+
+
+(extend-protocol TermInterface
+  logic.term.PrologDisjunction
+  (generate [disj names] (generate-disjunction disj names))
+  (get-variables [disj] (get-disjunction-variables disj))
+  (output [disj] (output-disjunction disj)))
+
+
+;; ===============================================================================
+;;  PrologConjunction: member(L, [1,2]), member(L, [2,3])
 ;;
 (defrecord PrologConjunction [terms])
-(defrecord PrologDisjunction [terms])
-(defrecord PrologNegation [term])
 
 
 (defn create-conjunction [[sign & terms]]
-  (if (= sign :%conj%)
+  (if (= sign :conj)
     (PrologConjunction. (mapv create terms))
-    (throw (Exception. "To create a PrologConjunction from a vector it must start with :%conj%."))))
-
-(defn create-disjunction [[sign & terms]]
-  (if (= sign :%disj%)
-    (PrologDisjunction. (mapv create terms))
-    (throw (Exception. "To create a PrologDisjunction from a vector it must start with :%disj%."))))
-
-(defn create-negation [[sign term]]
-  (if (= sign :%not%)
-    (PrologNegation. (create term))
-    (throw (Exception. "To create a PrologNegatoon from a vector it must start with :%not%."))))
-
+    (throw (Exception. "To create a PrologConjunction from a vector it must start with :conj."))))
 
 
 (defn prolog-conjunction? [term]
   (same? (type term)
          logic.term.PrologConjunction))
 
-(defn prolog-disjunction? [term]
-  (same? (type term)
-         logic.term.PrologDisjunction))
-
-(defn prolog-negation? [term]
-  (same? (type term)
-         logic.term.PrologNegation))
-
-
 
 (defn get-conjunction-variables [conj]
-  (reduce #(clojure.set/union %1 (get-variables %2)) #{} (:terms conj)))
-
-(defn get-disjunction-variables [disj]
-  (reduce #(clojure.set/union %1 (get-variables %2)) #{} (:terms disj)))
-
-(defn get-negation-variables [neg]
-  (get-variables (:term neg)))
-
-
+  (reduce #(clojure.set/union %1
+                              (get-variables %2))
+          #{}
+          (:terms conj)))
 
 
 (defn generate-conjunction [conj names]
-  (->
-   (generate-arguments (PrologArguments. (:terms conj))
-                       names)
-   (#(vector (PrologConjunction. (:args (first %)))
-             (second %)))))
-
-(generate-arguments (create-arguments [[:%fact% "member" ["A" ["A" :| "_"]]]])
-                      {})
+  (let [[new-terms new-names]
+        (generate-arguments (PrologArguments. (:terms conj))
+                            names)]
+    [(PrologConjunction. (:args new-terms))
+     new-names]))
 
 
 
@@ -728,50 +742,55 @@
              (:terms conj))
      2)))
 
-(defn output-disjunction [disj]
-  (if (empty? (:terms disj))
-    ""
-    (subs
-     (reduce (fn [out term]
-               (if (prolog-conjunction? term)
-                 (str out
-                      "; ("
-                      (output term)
-                      ")")
 
-                 (str out
-                      "; "
-                      (output term))))
-             ""
-             (:terms disj))
-     2)))
+(extend-protocol TermInterface
+  logic.term.PrologConjunction
+  (get-variables [conj] (get-conjunction-variables conj))
+  (generate [conj names] (generate-conjunction conj names))
+  (output [conj] (output-conjunction conj)))
+
+
+
+;; ===============================================================================
+;;  PrologNegation:    not(member(1, [2,3])).
+;;
+(defrecord PrologNegation [term])
+
+
+(defn create-negation [[sign term]]
+  (if (= sign :not)
+    (PrologNegation. (create term))
+    (throw (Exception. "To create a PrologNegation from a vector it must start with :not."))))
+
+
+(defn prolog-negation? [term]
+  (same? (type term)
+         logic.term.PrologNegation))
+
+
+(defn get-negation-variables [neg]
+  (get-variables (:term neg)))
+
+
+(defn generate-negation [neg names]
+  (let [[new-term new-names]
+        (generate (:term neg) names)]
+    [(PrologNegation. new-term)
+     new-names]))
+
 
 (defn output-negation [neg]
   (str "not("
        (output (:term neg))
        ")"))
 
-(extend-protocol TermInterface
-  logic.term.PrologConjunction
-
-  (output
-   [conj]
-   (output-conjunction conj)))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologDisjunction
-
-  (output
-   [disj]
-   (output-disjunction disj)))
 
 (extend-protocol TermInterface
   logic.term.PrologNegation
+  (get-variables [neg] (get-negation-variables neg))
+  (generate [neg names] (generate-negation neg names))
+  (output [neg] (output-negation neg)))
 
-  (output
-   [neg]
-   (output-negation neg)))
 
 
 ;; ===============================================================================
@@ -788,12 +807,12 @@
 
 
 (defn create-rule [[sign name args body]]
-  (if (same? sign :%rule%)
-    (let [new-head (create-fact [:%fact% name args])
+  (if (same? sign :rule)
+    (let [new-head (create-fact [:fact name args])
           new-body (create body)]
       (PrologRule. new-head new-body))
     (throw
-     (Exception. "To create a PrologRule from a vector, it must start with :%rule% keyword."))))
+     (Exception. "To create a PrologRule from a vector, it must start with :rule keyword."))))
 
 
 (defn prolog-rule? [rule]
@@ -846,143 +865,6 @@
    (output-rule rule)))
 
 
-;; ============================================================================
-;;  PrologMath: 1 + 2, X is 5 + 3.
-;;
-;;                                 +       is
-;;                                / \     /  \
-;;  Actualy, it looks more like: 1   2 , X    +
-;;                                           / \
-;;                                          5   3
-;;
-(defrecord PrologMath [name left right])
-
-
-(defn >math< [[sign name left right]]
-  (if (same? sign :#math)
-    (PrologMath. name
-                 (>term< left)
-                 (>term< right))
-    (throw (Exception. "To create a PrologMath from a vector, it must start with the :#math keyword."))))
-
-
-(defn prolog-math? [math]
-  (same? (type math)
-         logic.term.PrologMath))
-
-
-(defn =math= [math pool]
-  (PrologMath. (:name math)
-               (=term= (:left math) pool)
-               (=term= (:right math) pool)))
-
-
-(defn generate-math [math names]
-  (let [[new-left names-left] (generate-term (:left math) names)
-        [new-right names-right] (generate-term (:right math) names-left)]
-    [(PrologMath. (:name math)
-                  new-left
-                  new-right)
-     names-right]))
-
-
-(defn get-math-variables [math]
-  (clojure.set/union (get-term-variables (:left math))
-                     (get-term-variables (:right math))))
-
-
-(defn output-math [math]
-  (let [out-left (output-term (:left math))
-        out-right (output-term (:right math))]
-    (str "("
-         out-left
-         " "
-         (keyword->string (:name math))
-         " "
-         out-right
-         ")")))
-
-
-
-;; =============================================================================
-;;  PrologMethod: A + B, X is 42.01 - 0.01.
-;;
-;;
-(defrecord PrologMethod [name args func])
-
-
-(defn >method< [[sign name args func]]
-  (if (same? sign :#met)
-    (let [new-args (mapv >term< args)]
-      (PrologMethod. name new-args func))
-    (throw (Exception. "To create PrologMethod from a vector, it must start with :#meth keyword."))))
-
-
-(defn prolog-method? [method]
-  (same? (type method)
-         logic.term.PrologMethod))
-
-
-(defn =method= [method pool]
-  (PrologMethod. (:name method)
-                 (mapv #(=term= % pool) (:args method))
-                 (:func method)))
-
-
-(defn execute [method pool]
-  ((:func method) (:args method) pool))
-
-
-(defn generate-method [method names]
-  (let [[new-args new-pool] (generate-vector (:args method) names)]
-    [(PrologMethod. (:name method)
-                    new-args
-                    (:func method))
-     new-pool]))
-
-(defn match-math->method
-  [math method pool]
-  (if (or (different? (:name math)
-                      (:name method))
-          (different? 2 (count (:args method))))
-    [false pool]
-    (let [[new-left pool-left] (unify-terms (:left math)
-                                            (first (:args method))
-                                            pool)]
-      (if (false? new-left)
-        [false [pool]]
-        (let [[new-right pool-right] (unify-terms (:right math)
-                                                  (second (:args method))
-                                                  pool-left)]
-          (if (false? new-right)
-            [false pool]
-            (execute (PrologMethod. (:name method)
-                                    [new-left new-right]
-                                    (:func method))
-                     pool)))))))
-
-
-(defn unify-methods [method-x method-y pool])
-
-
-(defn get-method-variables
-  [method]
-  (reduce #(clojure.set/union %1 (get-term-variables %2)) #{} (:args method)))
-
-
-(defn output-method [method]
-  (str (keyword->string (:name method))
-       (output-arguments (:args method))))
-
-
-
-
-
-
-
-
-
-
 
 (extend-protocol TermInterface
   String
@@ -1004,15 +886,15 @@
   clojure.lang.PersistentVector
   (create [inp]
     (cond
-     (= :%fact% (first inp))
+     (= :fact (first inp))
        (create-fact inp)
-     (= :%rule% (first inp))
+     (= :rule (first inp))
        (create-rule inp)
-     (= :%conj% (first inp))
+     (= :conj (first inp))
        (create-conjunction inp)
-     (= :%disj% (first inp))
+     (= :disj (first inp))
        (create-disjunction inp)
-     (= :%not% (first inp))
+     (= :not (first inp))
        (create-negation inp)
      :else
        (create-list inp))))
