@@ -646,7 +646,7 @@
 
 
 ;; ===============================================================================
-;;  PrologDisjunction: member(L, [1,2]); member(L, [2,3]).
+;;  Prolog Disjunction: member(L, [1,2]); member(L, [2,3]).
 ;;
 (defrecord PrologDisjunction [terms])
 
@@ -692,7 +692,7 @@
 
 
 ;; ===============================================================================
-;;  PrologConjunction: member(L, [1,2]), member(L, [2,3])
+;;  Prolog Conjunction: member(L, [1,2]), member(L, [2,3])
 ;;
 (defrecord PrologConjunction [terms])
 
@@ -752,7 +752,7 @@
 
 
 ;; ===============================================================================
-;;  PrologNegation:    not(member(1, [2,3])).
+;;  Prolog Negation: not(member(1, [2,3])).
 ;;
 (defrecord PrologNegation [term])
 
@@ -794,6 +794,94 @@
 
 
 ;; ===============================================================================
+;;  Prolog Expression: 2 + 2, X is 3 * 8.
+;;
+;;                                           is
+;;                                          /  \
+;;  Actualy, they look like this:   +   ,  X    *
+;;                                 / \         / \
+;;                                2   2       3   5
+;;
+;;  They are secial type of Prolog Facts.
+;;  They have exactly two arguments and are used only for mathematical expressions.
+;;
+(defrecord PrologExpression [name left right])
+
+
+(defn create-expression [[sign left name right]]
+  (if (= sign :expr)
+    (PrologExpression. name (create left) (create right))
+    (throw (Exception. "To create a PrologExpression from a vector it must start with :expr"))))
+
+
+(defn prolog-expression? [term]
+  (same? (type term)
+         logic.term.PrologExpression))
+
+
+(defn generate-expression [expr names]
+  (let [[new-left names-left] (generate (:left expr) names)
+        [new-right new-names] (generate (:right expr) names-left)]
+    [(PrologExpression. (:name expr) new-left new-right)
+     new-names]))
+
+
+(defn get-expression-variables [expr]
+  (clojure.set/union (get-variables (:left expr))
+                     (get-variables (:right expr))))
+
+
+(defn output-expression [expr]
+  (str "("
+       (output (:left expr))
+       " "
+       (:name expr)
+       " "
+       (output (:right expr))
+       ")"))
+
+
+(extend-protocol TermInterface
+  logic.term.PrologExpression
+  (generate [expr names] (generate-expression expr names))
+  (get-variavles [expr] (get-expression-variables expr))
+  (output [expr] (output-expression expr)))
+
+
+
+;; ==================================================================================
+;;  Prolog Formula: random(Base, Max, Number).
+;;
+;;  A Prolog Formula is a Prolog Fact that executes a function when it gets resolved.
+;;  User cannot create Formulas, they are only built-in.
+;;
+(defrecord PrologFormula [fact func])
+
+
+(defn create-formula [[sign name args func]]
+  (if (= sign :form)
+    (PrologFormula. (create-fact [:fact name args])
+                    func)
+    (throw (Exception. "To create a Prolog Formula from a vector it must start with :form."))))
+
+
+(defn prolog-formula? [term]
+  (same? (type term)
+         logic.term.PrologFormula))
+
+
+(defn generate-formula [form names]
+  (let [[new-fact new-names] (generate-fact (:fact form) names)]
+    [(PrologFormula. new-fact (:func form))
+     new-names]))
+
+
+(extend-protocol TermInterface
+  logic.term.PrologFormula
+  (generate [form names] (generate-formula form names)))
+
+
+;; ==================================================================================
 ;;  Prolog Rule: member(A, [_ | X]) :- member(A, X).
 ;;
 ;;  A Prolog Rule has a head and a body.
@@ -841,12 +929,6 @@
      new-names]))
 
 
-(defn get-rule-variables [rule]
-  (clojure.set/union
-   (get-variables (:head rule))
-   (get-variables (:body rule))))
-
-
 (defn output-rule [rule]
   (str (output-fact (:head rule))
        ":-"
@@ -864,6 +946,10 @@
    [rule]
    (output-rule rule)))
 
+
+
+;; =========================================================
+;;  TermInterface create function.
 
 
 (extend-protocol TermInterface
@@ -896,5 +982,9 @@
        (create-disjunction inp)
      (= :not (first inp))
        (create-negation inp)
+     (= :expr (first inp))
+       (create-expression inp)
+     (= :form (first inp))
+       (create-formula inp)
      :else
        (create-list inp))))
