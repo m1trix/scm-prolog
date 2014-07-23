@@ -632,17 +632,18 @@
     :else
       [false pool]))
 
-  (generate
-   [fact names]
-     (generate-fact fact names))
+  (generate [fact names] (generate-fact fact names))
+  (get-variables [fact] (get-fact-variables fact))
+  (output [fact] (output-fact fact)))
 
-  (get-variables
-   [fact]
-     (get-fact-variables fact))
 
-  (output
-   [fact]
-     (output-fact fact)))
+(defn resolve-facts [fact-x fact-y pool]
+  (let [[new-fact new-pool]
+        (unify-facts fact-x fact-y pool)]
+    (if (false? new-fact)
+      [false pool]
+      [true new-pool])))
+
 
 
 ;; ===============================================================================
@@ -988,3 +989,8 @@
        (create-formula inp)
      :else
        (create-list inp))))
+
+(defn resolve [fact term pool]
+  (cond
+   (prolog-fact? term)
+     (resolve-facts fact term pool)))
