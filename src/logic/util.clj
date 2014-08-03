@@ -74,7 +74,7 @@
 (defn print-red
   "Prints the error message in a specific text format"
   [err-msg]
-  (println (str "\u001b[1;31m" err-msg "\u001b[0m")))
+  (print (str "\u001b[1;31m" err-msg "\u001b[0m")))
 
 
 (defn print-blue
@@ -92,7 +92,7 @@
 (defn print-gray
   "Prints a string with a gray color."
   [s]
-  (print (str "\u001b[38;5;243m" s "\u001b[0m")))
+  (print (str "\u001b[38;5;247m" s "\u001b[0m")))
 
 
 

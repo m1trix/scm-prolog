@@ -1,37 +1,42 @@
-;; ==========================================================================
-;;  This file contains all types of Terms that Prolog uses in order to work.
-;; ==========================================================================
-
 (ns logic.term
   [:require [logic.util :refer :all]
             [clojure.set]])
 
 
 (defprotocol TermInterface
-  (create [input])
-  (unify [x y pool])
-  (output [term])
+  (create [term])
+  (substitude [term pool])
   (generate [term names])
   (get-variables [term]))
 
+(defmulti output #(type %1))
+(defmulti unify (subvec #(mapv type %&) 0 2))
+(defmulti generate #(type %1))
 
 
-;; ============================================================================
-;;  Prolog Variable: X. Whatever.
-;;
-;;  A Prolog Variable always starts with a capital letter.
-;;  It does not have a value when it is created, but it can be evaluated to
-;;  any Prolog Term. Once a value is given to a Variable, it cannot be changed.
-;;
-;;  The process of unifying two Variables is a process of binding them together.
-;;  That means that whenever one of them gets evaluated, the other is also
-;;  evaluated.
-;;
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Variable: X. Whatever.                                                  # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  A Prolog Variable always starts with a capital letter.                         # ;
+; #  It does not have a value when it is created, but it can be evaluated to        # ;
+; #  any Prolog Term. Once a value is given to a Variable, it cannot be changed.    # ;
+; #                                                                                 # ;
+; #  The process of unifying two Variables is a process of binding them together.   # ;
+; #  That means that whenever one of them gets evaluated, the other is also         # ;
+; #  evaluated.                                                                     # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologVariable [name])
 
 
 (defn create-variable [var]
-  (if (re-matches (re-pattern #"[_A-Z][A-Za-z_]*") var)
+  (if (re-matches (re-pattern #"[_A-Z][0-9A-Za-z_]*") var)
     (PrologVariable. var)
     (throw (Exception. (str var " is invalid PrologVariable name!")))))
 
@@ -41,27 +46,36 @@
      logic.term.PrologVariable))
 
 
-(defn generate-variable [var names]
-  (if (= (:name var) "_")
-    (let [new-name (str (gensym))]
-      [(PrologVariable. new-name)
-       (assoc
-         names
-         new-name
-         new-name)])
-    (if (nil? (get names (:name var)))
+(defn extract
+  "Extracts the real value of the Variable from the pool."
+  [var pool]
+  (let [val (pool var)]
+    (if (or (nil? val)
+            (set? val))
+      var
+      (if (prolog-variable? val)
+        (extract val pool)
+        val))))
 
-      (let [new-name (str (gensym))]
-        [(PrologVariable. new-name)
-         (assoc
-           names
-           (:name var)
-           new-name)])
 
-      [(PrologVariable. (get names
-                             (:name var)))
-       names])))
+(defn bounds
+  "Returns a set of all Variables bound together with the given one."
+  [var pool]
+  (let [val (pool var)]
+    (cond
+     (set? val) val
 
+     (prolog-variable? val)
+       (bounds val pool)
+
+     :else #{})))
+
+
+
+;; TODO:
+(defn generate [var names]
+  (let [new-name (str (gensym '_G))
+        map-name (get ())]
 
 (defn get-variable-variables
   "A PrologVariable holds only itself, but random variables are not important."
@@ -71,8 +85,13 @@
     #{var}))
 
 
-(defn output-variable [var]
-  (:name var))
+(defmethod output PrologVariable
+  [var pool]
+  (let [val (get pool var)]
+    (if (or (nil? val)
+            (set? val))
+      (:name var)
+      (output val pool))))
 
 
 (defn evaluate-variable [var term pool]
@@ -83,43 +102,46 @@
       (unify val term pool))))
 
 
-(defn bind-variables
+(defn bind [var-x var-y pool]
+  (let [bounds-x (bounds var-x pool)
+        bounds-y (bounds var-y pool)
+        new-bounds (clojure.set/union bounds-x bounds-y)]
+    [var-x
+     (assoc pool
+      var-x (conj new-bounds var-y)
+      var-y var-x)]))
+
+
+(defmethod unify [PrologVariable PrologVariable]
+  ;; Two variables unify by agreeing to bind to each together.
+  ;; That means that whenever one of them is evaluated,
+  ;; the other one is also evaluated.
   [var-x var-y pool]
-  (if (same? var-x var-y)
-    [var-x pool]
-    (let [name-x (:name var-x)
-          name-y (:name var-y)
-          val-x (get pool name-x)
-          val-y (get pool name-y)]
-      (if (nil? val-x)
-        (if (nil? val-y)
-          [var-x (assoc pool name-y var-x)]
-          (evaluate-variable var-x val-y pool))
-        (if (nil? val-y)
-          (evaluate-variable var-y val-x pool)
-          (unify val-x val-y pool))))))
+  (let [val-x (extract var-x pool)
+        val-y (extract var-y pool)]
+    (cond
+
+     (and (prolog-variable? val-x)
+          (prolog-variable? val-y))
+     (bind val-x val-y pool)
+
+     (prolog-variable? val-x)
+     (unify val-x val-y pool)
+
+     (prolog-variable? val-y)
+     (unify val-y val-x pool)
+
+     :else
+     (unify val-x val-y pool))))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologVariable
-
-  (unify
-   [x y pool]
-   (if (prolog-variable? y)
-     (bind-variables x y pool)
-     (evaluate-variable x y pool)))
-
-  (generate
-   [var names]
-   (generate-variable var names))
-
-  (get-variables
-   [var]
-   (get-variable-variables var))
-
-  (output
-   [var]
-   (output-variable var)))
+(defn substitude-variable [var pool]
+  (let [name (:name var)
+        val (get pool name)]
+    (if (nil? val)
+      [var pool]
+      (let [[new-val new-pool] (substitude val pool)]
+        [new-val (assoc new-pool name new-val)]))))
 
 
 
@@ -164,7 +186,7 @@
 
 (defn output-atom
   "An Atom is printed as it's name."
-  [atom]
+  [atom pool]
   (:name atom))
 
 
@@ -181,18 +203,10 @@
     :else
      [false pool]))
 
-  (generate
-   [atom names]
-   (generate-atom atom names))
-
-  (output
-   [atom]
-   (output-atom atom))
-
-  (get-variables
-   [atom]
-   ;; An Atom holds no Variables.
-   #{}))
+  (generate [atom names] (generate-atom atom names))
+  (output [atom pool] (output-atom atom pool))
+  (get-variables [atom] #{})
+  (substitude [atom pool] [atom pool]))
 
 
 
@@ -227,7 +241,7 @@
 
 (defn output-number
   "A Number is printed as it's value."
-  [num]
+  [num pool]
   (str (:value num)))
 
 
@@ -251,18 +265,10 @@
     :else
       [false pool]))
 
-  (output
-   [num]
-   (output-number num))
-
-  (generate
-   [num names]
-   (generate-number num names))
-
-  (get-variables
-   ;; A Number holds no variables.
-   [num]
-   #{}))
+  (output [num pool] (output-number num pool))
+  (generate [num names] (generate-number num names))
+  (get-variables [num]  #{})
+  (substitude [num pool] [num pool]))
 
 
 
@@ -298,7 +304,7 @@
 
 (defn output-string
   "A Prolog String is printed as the string it represents."
-  [str]
+  [str pool]
   (:string str))
 
 
@@ -314,18 +320,10 @@
      :else
        [false pool]))
 
-  (generate
-   [s names]
-   (generate-string s names))
-
-  (output
-   [s]
-   (str "\"" (:string s) "\""))
-
-  (get-variables
-   [s]
-   ;; A String holds no Variables.
-   #{}))
+  (generate [s names] (generate-string s names))
+  (output [s pool] (str "\"" (:string s) "\""))
+  (get-variables [s] #{})
+  (substitude [s pool] [s pool]))
 
 
 
@@ -386,11 +384,11 @@
 
 (defn output-arguments
   "Returns a string with the output form of the given Arguments list."
-  [args]
+  [args pool]
   (str "("
        (when-not (empty? (:args args))
-         (reduce #(str %1 ", " (output %2))
-                 (output (first (:args args)))
+         (reduce #(str %1 ", " (output %2 pool))
+                 (output (first (:args args)) pool)
                  (rest (:args args))))
        ")"))
 
@@ -398,9 +396,20 @@
 (defn get-arguments-variables
   "Returns a set of all Variables holded by the Arguments list."
   [args]
-  (reduce clojure.set/union
+  (reduce #(clojure.set/union %1 (get-variables %2))
           #{}
-          (get-variables (:args args))))
+          (:args args)))
+
+
+(defn substitude-arguments [args pool]
+  (let [[new-args new-pool]
+        (reduce (fn [[res pool] term]
+                  (let [[new-term new-pool] (substitude term pool)]
+                    [(conj res new-term) new-pool]))
+                [[] pool]
+                (:args args))]
+    [(PrologArguments. new-args)
+     new-pool]))
 
 
 (extend-protocol TermInterface
@@ -412,17 +421,10 @@
        (unify-arguments args-x args-y pool)
        [false pool]))
 
-  (generate
-   [args names]
-   (generate-arguments args names))
-
-  (output
-   [args]
-   (output-arguments args))
-
-  (get-variables
-   [args]
-   (get-arguments-variables args)))
+  (generate [args names] (generate-arguments args names))
+  (output [args pool] (output-arguments args pool))
+  (get-variables [args] (get-arguments-variables args))
+  (substitude [args pool] (substitude-arguments args pool)))
 
 
 
@@ -536,16 +538,27 @@
          tail-names]))))
 
 
-(defn output-list [list]
+(defn output-list [list pool]
   (str "["
        (when-not (= [] (:head list))
-         (reduce #(str %1 ", " (output %2))
-                 (output (first (:head list)))
+         (reduce #(str %1 ", " (output %2 pool))
+                 (output (first (:head list)) pool)
                  (rest (:head list))))
        (when-not (= [] (:tail list))
          (str " | "
-              (output (:tail list))))
+              (output (:tail list) pool)))
        "]"))
+
+
+(defn substitude-list [list pool]
+  (let [[new-head head-pool] (substitude (PrologArguments. (:head list))
+                                       pool)]
+    (if (= [] (:tail list))
+      [(PrologList. (:args new-head) [])
+       head-pool]
+      (let [[new-tail tail-pool] (substitude (:tail list) head-pool)]
+        [(reconstruct-list (PrologList. (:args new-head) new-tail))
+         tail-pool]))))
 
 
 (extend-protocol TermInterface
@@ -560,16 +573,10 @@
      :else
        [false pool]))
 
-  (get-variables
-   [list]
-   (get-list-variables list))
-
-  (generate
-   [list names]
-   (generate-list list names))
-
-  (output [list]
-    (output-list list)))
+  (get-variables [list] (get-list-variables list))
+  (generate [list names] (generate-list list names))
+  (output [list pool] (output-list list pool))
+  (substitude [list pool] (substitude-list list pool)))
 
 ;; ===========================================================================
 ;;  Prolog Fact: cat(tom). member(X, Y).
@@ -596,9 +603,14 @@
                                   (:atom fact-y)
                                   pool)))
     [false pool]
-    (unify-arguments (:args fact-x)
-                     (:args fact-y)
-                     pool)))
+    (let [[new-args new-pool] (unify-arguments (:args fact-x)
+                                               (:args fact-y)
+                                               pool)]
+      (if (false? new-args)
+        [false pool]
+        [(PrologFact. (:atom fact-x)
+                      new-args)
+         new-pool]))))
 
 
 (defn generate-fact [fact names]
@@ -614,9 +626,15 @@
   (get-arguments-variables (:args fact)))
 
 
-(defn output-fact [fact]
-  (str (output (:atom fact))
-       (output (:args fact))))
+(defn output-fact [fact pool]
+  (str (output-atom (:atom fact) pool)
+       (output-arguments (:args fact) pool)))
+
+
+(defn substitude-fact [fact pool]
+  (let [[new-args new-pool] (substitude-arguments (:args fact) pool)]
+    [(PrologFact. (:atom fact) new-args)
+     new-pool]))
 
 
 (extend-protocol TermInterface
@@ -634,24 +652,16 @@
 
   (generate [fact names] (generate-fact fact names))
   (get-variables [fact] (get-fact-variables fact))
-  (output [fact] (output-fact fact)))
+  (output [fact pool] (output-fact fact pool))
+  (substitude [fact pool] (substitude-fact fact pool)))
 
 
-(defn resolve-facts [fact-x fact-y pool debug]
+(defn resolve-facts [fact-x fact-y pool]
   (let [[new-fact new-pool]
         (unify-facts fact-x fact-y pool)]
-    (when debug
-      (println-gray (str (output fact-x)
-                         "~>"
-                         (output fact-y)
-                         " => "
-                         (if (false? new-fact)
-                           "false"
-                           "true"))))
     (if (false? new-fact)
-      [false pool]
-      [true new-pool])))
-
+      [false false pool]
+      [true new-fact new-pool])))
 
 
 ;; ===============================================================================
@@ -683,11 +693,11 @@
      new-names]))
 
 
-(defn output-disjunction [disj]
+(defn output-disjunction [disj pool]
   (if (empty? (:terms disj))
     ""
     (subs
-     (reduce #(str %1 "; " %2)
+     (reduce #(str %1 "; " (output %2 pool))
              ""
              (:terms disj))
      2)))
@@ -697,7 +707,7 @@
   logic.term.PrologDisjunction
   (generate [disj names] (generate-disjunction disj names))
   (get-variables [disj] (get-disjunction-variables disj))
-  (output [disj] (output-disjunction disj)))
+  (output [disj pool] (output-disjunction disj pool)))
 
 
 ;; ===============================================================================
@@ -733,30 +743,35 @@
 
 
 
-(defn output-conjunction [conj]
+(defn output-conjunction [conj pool]
   (if (empty? (:terms conj))
     ""
-    (subs
-     (reduce (fn [out term]
-               (if (prolog-disjunction? term)
-                 (str out
-                      ", ("
-                      (output term)
-                      ")")
+    (str "("
+         (subs
+          (reduce #(str %1 ", " (output %2 pool))
+                  ""
+                  (:terms conj))
+          2)
+         ")")))
 
-                 (str out
-                      ", "
-                      (output term))))
-             ""
-             (:terms conj))
-     2)))
+
+(defn substitude-conjunction [conjunct pool]
+  (let [[res new-pool] (reduce (fn [[res pool] term]
+                                 (let [[new-term new-pool] (substitude term pool)]
+                                   [(conj res new-term)
+                                    new-pool]))
+                               [[] pool]
+                               (:terms conjunct))]
+    [(PrologConjunction. res)
+     new-pool]))
 
 
 (extend-protocol TermInterface
   logic.term.PrologConjunction
   (get-variables [conj] (get-conjunction-variables conj))
   (generate [conj names] (generate-conjunction conj names))
-  (output [conj] (output-conjunction conj)))
+  (output [conj pool] (output-conjunction conj pool))
+  (substitude [conj pool] (substitude-conjunction conj pool)))
 
 
 
@@ -788,9 +803,9 @@
      new-names]))
 
 
-(defn output-negation [neg]
+(defn output-negation [neg pool]
   (str "not("
-       (output (:term neg))
+       (output (:term neg) pool)
        ")"))
 
 
@@ -798,7 +813,7 @@
   logic.term.PrologNegation
   (get-variables [neg] (get-negation-variables neg))
   (generate [neg names] (generate-negation neg names))
-  (output [neg] (output-negation neg)))
+  (output [neg pool] (output-negation neg pool)))
 
 
 
@@ -840,13 +855,13 @@
                      (get-variables (:right expr))))
 
 
-(defn output-expression [expr]
+(defn output-expression [expr pool]
   (str "("
-       (output (:left expr))
+       (output (:left expr) pool)
        " "
        (:name expr)
        " "
-       (output (:right expr))
+       (output (:right expr) pool)
        ")"))
 
 
@@ -854,7 +869,7 @@
   logic.term.PrologExpression
   (generate [expr names] (generate-expression expr names))
   (get-variavles [expr] (get-expression-variables expr))
-  (output [expr] (output-expression expr)))
+  (output [expr pool] (output-expression expr pool)))
 
 
 
@@ -928,30 +943,36 @@
      new-names]))
 
 
-(defn output-rule [rule]
-  (str (output-fact (:head rule))
-       ":-"
-       (output(:body rule))))
+(defn substitude-rule [rule pool]
+  (let [[new-head head-pool] (substitude-fact (:head rule) pool)
+        [new-body body-pool] (substitude (:body rule) head-pool)]
+    [(PrologRule. new-head new-body)
+     body-pool]))
+
+
+(defn output-rule [rule pool]
+  (str (output (:head rule) pool)
+       " :- "
+       (output (:body rule) pool)))
 
 
 (extend-protocol TermInterface
   logic.term.PrologRule
 
-  (generate
-   [rule names]
-   (generate-rule rule names))
-
-  (output
-   [rule]
-   (output-rule rule)))
+  (generate [rule names] (generate-rule rule names))
+  (output [rule pool] (output-rule rule pool))
+  (substitude [rule pool] (substitude-rule [rule pool])))
 
 
-(defn resolve-fact->rule [fact rule pool debug]
-  (let [[result new-pool]
-        (resolve-facts fact (:head rule) pool debug)]
-    (if (false? result)
-      [false pool]
-      [(:body rule) new-pool])))
+(defn resolve-fact->rule [fact rule pool]
+  (let [[status new-fact new-pool]
+        (resolve-facts fact (:head rule) pool)
+        [new-body final-pool] (substitude (:body rule) new-pool)]
+    (if (false? status)
+      [false false pool]
+      [:unresolved
+       (PrologRule. new-fact new-body)
+       final-pool])))
 
 
 
@@ -967,7 +988,7 @@
    (cond
     (re-matches (re-pattern #"\"[^\"]+\"") inp)
       (create-string inp)
-    (re-matches (re-pattern #"[_A-Z][A-Za-z_]*") inp)
+    (re-matches (re-pattern #"[_A-Z][0-9A-Za-z_]*") inp)
       (create-variable inp)
     :else
       (create-atom inp)))
@@ -997,16 +1018,16 @@
        (create-list inp))))
 
 
-(extend-protocol TermInterface
-  java.lang.Boolean
+;;  TODO:
+;; (extend-protocol TermInterface
+;;   java.lang.Boolean
 
-  (output [inp] (str inp)))
+;;   (output [inp] (str inp)))
 
 
-
-(defn resolve [fact term pool debug]
+(defn resolve [fact term pool]
   (cond
    (prolog-fact? term)
-     (resolve-facts fact term pool debug)
+     (resolve-facts fact term pool)
    (prolog-rule? term)
-     (resolve-fact->rule fact term pool debug)))
+     (resolve-fact->rule fact term pool)))

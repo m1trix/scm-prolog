@@ -12,15 +12,18 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (let [query (create [:fact "member" ["L" [1 2 3]]])]
-    (println (output query))
-    (?- query))
+  (let [fact (create [:fact "perm" ["L" [1 2 3]]])]
+    (?- fact))
 
 
   (let [input (atom "")]
     (while (different? @input "halt.")
       (do
-        (print "?- \u001b[33m")
+        (when @trace
+          (print "[trace] "))
+        (when (or @watch-stack @watch-pool @watch-resolve)
+          (print "[debug] "))
+        (print " ?- \u001b[33m")
         (flush)
         (reset! input (read-line))
         (print "\u001b[0m"))))
