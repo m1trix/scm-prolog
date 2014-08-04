@@ -3,14 +3,27 @@
             [clojure.set]])
 
 
-(defprotocol TermInterface
-  (create [term]))
-
 (defmulti output (fn [term _] (type term)))
 (defmulti unify (fn [x y _] [(type x) (type y)]))
 (defmulti generate (fn [term _] (type term)))
 (defmulti get-vars type)
 (defmulti reshape (fn [term _] (type term)))
+(defmulti create type)
+
+
+(defmethod reshape :default
+  [term pool]
+  [term pool])
+
+
+(defmethod generate :default
+  [term names]
+  [term names])
+
+
+(defmethod get-vars :default
+  [_]
+  #{})
 
 
 ; =================================================================================== ;
@@ -34,6 +47,8 @@
 (defrecord PrologVariable [name])
 
 
+
+;; TODO
 (defn prolog-variable? [var]
   (= (type var)
      logic.term.PrologVariable))
@@ -154,193 +169,160 @@
         [new-val (assoc new-pool var new-val)]))))
 
 
-;; ===========================================================================
-;;  Prolog Atoms: cat, dOG, cat_dog, 'some atom+wh@tever s&mbols//'
-;;
-;;  It's a general-purpose name with no inherent meaning.
-;;
-;;  Atom "atom" can be unified with atom "'atom'".
-;;
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Atom: cat, dOG, cat_dog, 'some atom+wh@tever s&mbols//'                 # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #   It's a general-purpose name with no inherent meaning.                         # ;
+; #                                                                                 # ;
+; #  Atom "atom" can be unified with atom "'atom'".                                 # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologAtom [name])
 
 
-(defn create-atom [name]
-  (if (re-matches (re-pattern #"[a-z][a-zA-Z_]*|'[^']+'") name)
-    (PrologAtom. name)
-    (throw (Exception. (str name " is invalid PrologAtom name!")))))
-
-
+;; TODO
 (defn prolog-atom? [atom]
   (same? (type atom) logic.term.PrologAtom))
 
 
-(defn unify-atoms
-  "Two atoms unify if they have exactly the same names, or one is the same placed in ' '."
+(defmethod unify [PrologAtom PrologAtom]
+  ;; Two atoms unify if they have exactly the same names,
+  ;; or one is the same placed in ' '.
   [x y pool]
   ;; Removing the ' ' and checking if the results are the same.
   (let [name-x (re-find (re-pattern #"[^']+") (:name x))
         name-y (re-find (re-pattern #"[^']+") (:name y))]
     (if (same? name-x name-y)
-      (if (re-matches (re-pattern #"[a-zA-Z_]+") name-x)
+      (if (re-matches (re-pattern #"[a-z][a-zA-Z_]*") name-x)
         [(create-atom name-x) pool]
         [(create-atom (str \' name-x \')) pool])
       [false pool])))
 
+(defmethod unify [PrologAtom PrologVariable]
+  [atom var pool]
+  (evaluate var atom pool))
 
-(defn generate-atom
-  "An Atom holds no variables, so it remains the same."
-  [atom names]
-  [atom names])
+(defmethod unify [PrologVariable PrologAtom]
+  [var atom pool]
+  (evaluate var atom pool))
 
 
-(defn output-atom
-  "An Atom is printed as it's name."
+(defmethod output PrologAtom
+  ;; An Atom is printed as it's name.
   [atom pool]
   (:name atom))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologAtom
+; =================================================================================== ;
+; =================================================================================== ;
 
-  (unify
-   [atom-x atom-y pool]
-   (cond
-    (prolog-atom? atom-y)
-      (unify-atoms atom-x atom-y pool)
-    (prolog-variable? atom-y)
-      (evaluate-variable atom-y atom-x pool)
-    :else
-     [false pool]))
-
-  (generate [atom names] (generate-atom atom names))
-  (output [atom pool] (output-atom atom pool))
-  (get-variables [atom] #{})
-  (substitude [atom pool] [atom pool]))
-
-
-
-;; ===========================================================================
-;;  Prolog Numbers: 1, 5.5.
-;;  They are just numbers.
-;;
-;;  Numbers can be used in mathematical expressions.
-;;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #   Prolog Number: 1, 5.5.                                                        # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  They are just numbers.                                                         # ;
+; #                                                                                 # ;
+; #  Numbers can be used in mathematical expressions.                               # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologNumber [value])
 
 
-(defn create-number [n]
-  (if (number? n)
-    (PrologNumber. n)
-    (throw (Exception. (str n " is illegal PrologNumber value!")))))
+(defmethod create Number
+  [n]
+  (PrologNumber. n))
 
 
+;; TODO
 (defn prolog-number? [number]
   (same? (type number)
          logic.term.PrologNumber))
 
 
-(defn unify-numbers
-  "Two Numbers unify if their values are equal."
+(defmethod unify [PrologNumber PrologNumber]
+  ;; Two Numbers unify if their values are equal.
   [x y pool]
   (if (= (:value x)
          (:value y))
     [x pool]
     [false pool]))
 
+(defmethod unify [PrologNumber PrologVariable]
+  [num var pool]
+  (evaluate var num pool))
 
-(defn output-number
-  "A Number is printed as it's value."
-  [num pool]
+(defmethod unify [PrologVariable PrologNumber]
+  [var num pool]
+  (evaluate var num pool))
+
+
+(defmethod output PrologNumber
+  ;; A Number is printed as it's value.
+  [num _]
   (str (:value num)))
 
 
-(defn generate-number
-  "A Number holds no Variables, so it remains exactily the same."
-  [num names]
-  [num names])
+; =================================================================================== ;
+; =================================================================================== ;
 
-
-(extend-protocol TermInterface
-  logic.term.PrologNumber
-
-  (unify
-   [x y pool]
-   (cond
-    (prolog-number? y)
-      (unify-numbers x y pool)
-    (prolog-variable? y)
-      (evaluate-variable y x pool)
-
-    :else
-      [false pool]))
-
-  (output [num pool] (output-number num pool))
-  (generate [num names] (generate-number num names))
-  (get-variables [num]  #{})
-  (substitude [num pool] [num pool]))
-
-
-
-;; ============================================================================
-;;  Prolog String: "string", "Tom is a cat!"
-;;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog String: "string", "Tom is a cat!"                                       # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologString [string])
 
 
-(defn create-string [s]
-  (if (string? s)
-    (PrologString. s)
-    (throw (Exception. (str s " is illegal PrologString value.")))))
-
-
+;; TODO
 (defn prolog-string? [string]
   (same? (type string)
          logic.term.PrologString))
 
 
-(defn unify-strings [x y pool]
+(defmethod unify [PrologString PrologString]
+  ;; Two Strings unify if their characters are exactly the same.
+  [x y pool]
   (if (= (:string x)
          (:string y))
     [x pool]
     [false pool]))
 
+(defmethod unify [PrologString PrologVariable]
+  [str var pool]
+  (evaluate var str pool))
 
-(defn generate-string
-  "A String holds no variables, so it remains the same"
-  [str pool]
-  [str pool])
+(defmethod unify [PrologVariable PrologString]
+  [var str pool]
+  (evaluate var str pool))
 
 
-(defn output-string
-  "A Prolog String is printed as the string it represents."
+(defmethod output PrologString
   [str pool]
   (:string str))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologString
+; =================================================================================== ;
+; =================================================================================== ;
 
-  (unify [x y pool]
-    (cond
-     (prolog-string? y)
-       (unify-strings x y pool)
-     (prolog-variable? y)
-       (evaluate-variable y x pool)
-     :else
-       [false pool]))
-
-  (generate [s names] (generate-string s names))
-  (output [s pool] (str "\"" (:string s) "\""))
-  (get-variables [s] #{})
-  (substitude [s pool] [s pool]))
-
-
-
-;; ===========================================================================
-;;  PrologArguments: (Var, atom, [1,2 | [3]]).
-;;
-;;  It's a list of Prolog Terms.
-;;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  PrologArguments: (Var, atom, [1,2 | [3]]).                                     # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  It's a list of Prolog Terms.                                                   # ;
+; #  Two Arguments lists unify if they hold the same number of Terms and each two   # ;
+; #  arguments unify.                                                               # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologArguments [args])
 
 
@@ -348,38 +330,35 @@
   (PrologArguments. (mapv create args)))
 
 
+;; TODO
 (defn prolog-arguments? [term]
   (= (type term)
      logic.term.PrologArguments))
 
 
-(defn unify-arguments
-  "Two Arguments lists unify if each twoplet of elements unify."
-  [args-x args-y pool]
+(defmethod unify [PrologArguments PrologArguments]
+  [args-x args-y in-pool]
   (if (different? (count (:args args-x))
-                    (count (:args args-y)))
-      [false pool]
-      (->>
-       (mapv vector
-             (:args args-x)
-             (:args args-y))
-       (reduce (fn [[args pool] [x y]]
-                 (if (false? args)
-                   [false pool]
-                   (let [[z new-pool] (unify x y pool)]
-                     (if (false? z)
-                       [false pool]
-                       [(conj args z)
-                        new-pool]))))
-               [[] pool])
-       (#(if (false? (first %))
-           [false pool]
-           [(PrologArguments. (first %))
-            (second %)])))))
+                  (count (:args args-y)))
+    [false in-pool]
+
+    (loop [args []
+           all (mapv vector (:args args-x) (:args args-y))
+           pool in-pool]
+      (if (empty? all)
+        [(PrologArguments. args) pool]
+        (let [[term-x term-y] (first all)
+              [new-term new-pool] (unify term-x term-y pool)]
+          (if (false? new-term)
+            [false pool]
+            (recur (conj args new-term)
+                   new-pool
+                   (rest all))))))))
 
 
-(defn generate-arguments
-  "Returns a new Prolog Arguments list with new names generated for the unique Variables."
+(defmethod generate PrologArguments
+  ;; Returns a new Prolog Arguments list
+  ;; with new names generated for the unique Variables.
   [args names]
     (let [[new-args new-names]
         (reduce
@@ -391,8 +370,8 @@
     [(PrologArguments. new-args) new-names]))
 
 
-(defn output-arguments
-  "Returns a string with the output form of the given Arguments list."
+(defmethod output PrologArguments
+  ;; Returns a string with the output form of the given Arguments list.
   [args pool]
   (str "("
        (when-not (empty? (:args args))
@@ -402,39 +381,24 @@
        ")"))
 
 
-(defn get-arguments-variables
-  "Returns a set of all Variables holded by the Arguments list."
+(defmethod get-vars PrologArguments
   [args]
-  (reduce #(clojure.set/union %1 (get-variables %2))
+  (reduce #(clojure.set/union %1 (get-vars %2))
           #{}
           (:args args)))
 
 
-(defn substitude-arguments [args pool]
-  (let [[new-args new-pool]
-        (reduce (fn [[res pool] term]
-                  (let [[new-term new-pool] (substitude term pool)]
-                    [(conj res new-term) new-pool]))
-                [[] pool]
-                (:args args))]
-    [(PrologArguments. new-args)
-     new-pool]))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologArguments
-
-  (unify
-   [args-x args-y pool]
-     (if (prolog-arguments? args-y)
-       (unify-arguments args-x args-y pool)
-       [false pool]))
-
-  (generate [args names] (generate-arguments args names))
-  (output [args pool] (output-arguments args pool))
-  (get-variables [args] (get-arguments-variables args))
-  (substitude [args pool] (substitude-arguments args pool)))
-
+(defmethod reshape PrologArguments
+  [in-args in-pool]
+  (loop [args []
+         all (:args in-args)
+         pool in-pool]
+    (if (empty? all)
+      [(PrologArguments. args) pool]
+    (let [[new-term new-pool] (reshape (first all) pool)]
+      (recur (conj args new-term)
+             (rest all)
+             new-pool)))))
 
 
 ;; ============================================================================
@@ -986,57 +950,21 @@
 
 
 ;; =========================================================
-;;  TermInterface create function.
+;;
 
 
-(extend-protocol TermInterface
-  String
-
-  (create
-   [inp]
-   (cond
-    (re-matches (re-pattern #"\"[^\"]+\"") inp)
-      (create-string inp)
-    (re-matches (re-pattern #"[_A-Z][0-9A-Za-z_]*") inp)
-      (create-variable inp)
-    :else
-      (create-atom inp)))
-
-  Number
-  (create [inp]
-    (create-number inp))
-
-  clojure.lang.PersistentVector
-  (create [inp]
-    (cond
-     (= :fact (first inp))
-       (create-fact inp)
-     (= :rule (first inp))
-       (create-rule inp)
-     (= :conj (first inp))
-       (create-conjunction inp)
-     (= :disj (first inp))
-       (create-disjunction inp)
-     (= :not (first inp))
-       (create-negation inp)
-     (= :expr (first inp))
-       (create-expression inp)
-     (= :form (first inp))
-       (create-formula inp)
-     :else
-       (create-list inp))))
-
-
-;;  TODO:
-;; (extend-protocol TermInterface
-;;   java.lang.Boolean
-
-;;   (output [inp] (str inp)))
-
-
-(defn resolve [fact term pool]
+(defmethod create String
+  [inp]
   (cond
-   (prolog-fact? term)
-     (resolve-facts fact term pool)
-   (prolog-rule? term)
-     (resolve-fact->rule fact term pool)))
+
+   (re-matches (re-pattern #"\"[^\"]+\"") inp)
+   (PrologString. inp)
+
+   (re-matches (re-pattern #"[A-Z][0-9A-Za-z_]*|[_]") inp)
+   (PrologVariable. inp)
+
+   (re-matches (re-pattern #"[a-z][a-zA-Z_]*|'[^']+'") inp)
+   (PrologAtom. inp)
+
+   :else
+   (throw (Exception. (str "Unable to create a PrologTerm from " inp "!")))))
