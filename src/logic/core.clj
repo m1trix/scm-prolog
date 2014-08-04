@@ -12,7 +12,7 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (let [fact (create [:fact "perm" ["L" [1 2 3]]])]
+  (let [fact (create [:fact "member" ["L" [1 2 3]]])]
     (?- fact))
 
 

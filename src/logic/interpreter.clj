@@ -2,28 +2,21 @@
   (:use [logic.util]
         [logic.term]))
 
-;; ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-;; ##                                                                                  ##
-;; ##  This is the source of all knowledge.                                            ##
-;; ##  Whatever gets loaded to the program goes here.                                  ##
-;; ##  The interpreter knows only the things that are included in the knowledge-base.  ##
-;; ##                                                                                  ##
-;; ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-(def knowledge-base (atom {"member" [(create [:fact "member" ["A" ["A" :| "_"]]])
-                                     (create [:rule "member" ["A" ["_" :| "X"]]
-                                              [:fact "member" ["A" "X"]]])]
-                           "concat" [(create [:fact "concat" [[] "Y" "Y"]])
-                                     (create [:rule "concat" [["A" :| "X"] "Y" ["A" :| "Z"]]
-                                              [:fact "concat" ["X" "Y" "Z"]]])]
-                           "insert" [(create [:fact "insert" ["A" "X" ["A" :| "X"]]])
-                                     (create [:rule "insert" ["A" ["B" :| "X"] ["B" :| "Y"]]
-                                              [:fact "insert" ["A" "X" "Y"]]])]
-                           "perm" [(create [:fact "perm" [["A"] ["A"]]])
-                                   (create [:rule "perm"
-                                            [["A" :| "X"] "Z"]
-                                            [:conj [:fact "perm" ["X" "Y"]]
-                                                   [:fact "insert" ["A" "Y" "Z"]]]])]}))
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  This is the source of all knowledge.                                           # ;
+; #  Whatever gets loaded to the program goes here.                                 # ;
+; #  The interpreter knows only the things that are included in the knowledge-base. # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+(def knowledge-base
+  (atom {"member"
+         [(create [:fact "member" ["A" ["A" :| "_"]]])
+          (create [:rule "member" ["A" ["_" :| "X"]]
+                   [:fact "member" ["A" "X"]]])]}))
+
+
 (def trace (atom true))
 (def watch-stack (atom false))
 (def watch-pool (atom false))
@@ -32,16 +25,18 @@
 
 
 (defprotocol Interpreter
-  (replace [query term])
-  (prove [term [query pool stack] depth start]))
+  (replace [query term]))
+
+
+(defmulti prove #(-> %& first type))
 
 
 (defn evaluate-pool
   [pool]
   (->>
-   (map create (keys pool))
+   (keys pool)
    (reduce (fn [pool var]
-             (let [[new-val new-pool] (substitude-variable var pool)]
+             (let [[new-val new-pool] (reshape var pool)]
                new-pool))
            pool)))
 
@@ -67,7 +62,8 @@
   term)
 
 
-(defn prove-fact [fact [query pool stack] depth start]
+(defmethod prove logic.term.PrologFact
+  [fact query pool stack depth start]
   (let [name (:name (:atom fact))
         all (get @knowledge-base name)]
     (when @trace
@@ -146,7 +142,7 @@
                       (read-line))
                     [true new-pool new-stack])
                   (let [new-query (replace query new-term)]
-                    (prove new-term [new-query new-pool new-stack] depth 0)))))))))))
+                    (prove new-term new-query new-pool new-stack depth 0)))))))))))
 
 
 (defn replace-rule [rule term]
@@ -154,9 +150,10 @@
                 (replace (:body rule) term)))
 
 
-(defn prove-rule [rule [query pool stack] depth start]
+(defmethod prove logic.term.PrologRule
+  [rule query pool stack depth start]
   (let [[status new-pool new-stack]
-        (prove (:body rule) [query pool stack] (inc depth) start)]
+        (prove (:body rule) query pool stack (inc depth) start)]
     (if (false? status)
       (do
         (when @trace
@@ -178,14 +175,8 @@
         [true new-pool new-stack]))))
 
 
-(defn prove-negation [neg [query pool stack] depth start]
-  (let [[answer _ _] (prove (:term neg) [(:term neg) pool []] depth 0)]
-    (if (false? answer)
-      [true pool stack]
-      [false pool stack])))
-
-
-(defn prove-conjunction [conj [input-query input-pool input-stack] depth input-start]
+(defmethod prove logic.term.PrologConjunction
+  [conj input-query input-pool input-stack depth input-start]
   (loop [goals (:terms conj)
          query input-query
          pool input-pool
@@ -194,7 +185,7 @@
     (if (empty? goals)
       [true pool stack]
       (let [[answer new-pool new-stack]
-            (prove (first goals) [query pool stack] depth start)]
+            (prove (first goals) query pool stack depth start)]
         (if (false? answer)
           [false new-pool new-stack]
           (recur (rest goals)
@@ -213,41 +204,32 @@
 (extend-protocol Interpreter
   logic.term.PrologRule
 
-  (prove [term [query pool stack] depth start] (prove-rule term [query pool stack] depth start))
   (replace [query term] (replace-rule query term))
 
 
   logic.term.PrologFact
 
   (replace [query term] (replace-fact query term))
-  (prove [term [query pool stack] depth start] (prove-fact term [query pool stack] depth start))
-
-
-  logic.term.PrologNegation
-
-  (prove [term [query pool stack] depth start] (prove-negation term [query pool stack] depth start))
 
 
   logic.term.PrologConjunction
 
-  (replace [query term] (replace-conjunction query term))
-  (prove [term [query pool stack] depth start] (prove-conjunction term [query pool stack] depth start)))
+  (replace [query term] (replace-conjunction query term)))
 
 
 
 
 
 (defn print-var [var work-pool]
-  (let [name (:name var)
-        value (get work-pool name)]
+  (let [value (work-pool var)]
     (if (nil? value)
       ""
-      (str name " = " (output value work-pool)))))
+      (str (:name var) " = " (output value work-pool)))))
 
 
 (defn print-answer [main-pool work-pool]
   (loop [vars (reduce (fn [pool var]
-                        (if (nil? (get work-pool (:name var)))
+                        (if (nil? (work-pool var))
                           (disj pool var)
                           pool))
                       main-pool main-pool)]
@@ -265,12 +247,12 @@
   "Proves the query and prints the answer. If there are more than one
   solutions, it waits for the user to stop it or continue it."
   [input]
-  (let [main-pool (get-variables input)]
+  (let [main-pool (get-vars input)]
     (loop [query input
            work-pool {}
            stack []
            index 0]
-      (let [[answer new-pool new-stack] (prove query [query work-pool stack] 1 index)]
+      (let [[answer new-pool new-stack] (prove query query work-pool stack 1 index)]
         (if (true? answer)
           (do
             (if (empty? main-pool)

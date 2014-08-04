@@ -644,7 +644,7 @@
 (defmethod reshape PrologFact
   [fact pool]
   (-> (reshape (:args fact) pool)
-      (#(assoc % 0 (PrologFact. (:args fact) (first %))))))
+      (#(assoc % 0 (PrologFact. (:atom fact) (first %))))))
 
 
 (defmethod resolve [PrologFact PrologFact]
@@ -891,7 +891,7 @@
 
 
 (defn create-rule [[name args body]]
-  (let [new-head (create-fact [:fact name args])
+  (let [new-head (create-fact [name args])
         new-body (create body)]
     (PrologRule. new-head new-body)))
 
