@@ -4,14 +4,13 @@
 
 
 (defprotocol TermInterface
-  (create [term])
-  (substitude [term pool])
-  (generate [term names])
-  (get-variables [term]))
+  (create [term]))
 
-(defmulti output #(type %1))
-(defmulti unify (subvec #(mapv type %&) 0 2))
-(defmulti generate #(type %1))
+(defmulti output (fn [term _] (type term)))
+(defmulti unify (fn [x y _] [(type x) (type y)]))
+(defmulti generate (fn [term _] (type term)))
+(defmulti get-vars type)
+(defmulti reshape (fn [term _] (type term)))
 
 
 ; =================================================================================== ;
@@ -33,12 +32,6 @@
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologVariable [name])
-
-
-(defn create-variable [var]
-  (if (re-matches (re-pattern #"[_A-Z][0-9A-Za-z_]*") var)
-    (PrologVariable. var)
-    (throw (Exception. (str var " is invalid PrologVariable name!")))))
 
 
 (defn prolog-variable? [var]
@@ -71,14 +64,27 @@
      :else #{})))
 
 
+(defmethod generate PrologVariable
+  [var names]
+  (let [name (:name var)
+        new-name (-> '_G gensym str)
+        map-name (names name)]
+    (cond
 
-;; TODO:
-(defn generate [var names]
-  (let [new-name (str (gensym '_G))
-        map-name (get ())]
+     (= name "_")
+     [(PrologVariable. new-name) names]
 
-(defn get-variable-variables
-  "A PrologVariable holds only itself, but random variables are not important."
+     (nil? map-name)
+     [(PrologVariable. new-name)
+      (assoc names name new-name)]
+
+     :else
+     [(PrologVariable. map-name) names])))
+
+
+(defmethod get-vars PrologVariable
+  ;; A PrologVariable holds only itself,
+  ;; but random variables are not important.
   [var]
   (if (= (:name var) "_")
     #{}
@@ -94,22 +100,25 @@
       (output val pool))))
 
 
-(defn evaluate-variable [var term pool]
-  (let [name (:name var)
-        val (get pool name)]
-    (if (nil? val)
-      [term (assoc pool name term)]
-      (unify val term pool))))
+(defn evaluate
+  "Evaluates the Variable with value Term, no matter if it's already evaluated."
+  [var term pool]
+  (->>
+   (bounds var pool)
+   (reduce #(assoc %1 %2 term) pool)
+   (#(assoc % var term))
+   (vector term)))
 
 
-(defn bind [var-x var-y pool]
+(defn bind
+  "Binds the second Variable to the First one. All Variables previously bound to the
+  second one are now directly bound to the first."
+  [var-x var-y pool]
   (let [bounds-x (bounds var-x pool)
         bounds-y (bounds var-y pool)
-        new-bounds (clojure.set/union bounds-x bounds-y)]
-    [var-x
-     (assoc pool
-      var-x (conj new-bounds var-y)
-      var-y var-x)]))
+        new-bounds (clojure.set/union bounds-x bounds-y)
+        [_ new-pool] (evaluate var-y var-x pool)]
+    [var-x (assoc pool var-x new-bounds)]))
 
 
 (defmethod unify [PrologVariable PrologVariable]
@@ -121,32 +130,32 @@
         val-y (extract var-y pool)]
     (cond
 
-     (and (prolog-variable? val-x)
-          (prolog-variable? val-y))
+     (and (prolog-variable? val-x)    ;; Both are not evaluated, so
+          (prolog-variable? val-y))   ;; they bind together.
      (bind val-x val-y pool)
 
      (prolog-variable? val-x)
-     (unify val-x val-y pool)
+     (evaluate val-x val-y pool)
 
      (prolog-variable? val-y)
-     (unify val-y val-x pool)
+     (evaluate val-y val-x pool)
 
      :else
      (unify val-x val-y pool))))
 
 
-(defn substitude-variable [var pool]
-  (let [name (:name var)
-        val (get pool name)]
-    (if (nil? val)
+(defmethod reshape PrologVariable
+  [var pool]
+  (let [val (pool var)]
+    (if (or (set? val)
+            (nil? val))
       [var pool]
-      (let [[new-val new-pool] (substitude val pool)]
-        [new-val (assoc new-pool name new-val)]))))
-
+      (let [[new-val new-pool] (reshape val pool)]
+        [new-val (assoc new-pool var new-val)]))))
 
 
 ;; ===========================================================================
-;;  Prolog Atoms: cat, dOG, cat_dog, 'some atom+wh@tever s&mbols'
+;;  Prolog Atoms: cat, dOG, cat_dog, 'some atom+wh@tever s&mbols//'
 ;;
 ;;  It's a general-purpose name with no inherent meaning.
 ;;
