@@ -8,7 +8,8 @@
 (defmulti generate (fn [term _] (type term)))
 (defmulti get-vars type)
 (defmulti reshape (fn [term _] (type term)))
-(defmulti create type)
+(defmulti create (fn [inp & rest] (type inp)))
+(defmulti resolve (fn [x y _] [(type x) (type y)]))
 
 
 (defmethod reshape :default
@@ -58,8 +59,7 @@
   "Extracts the actual value of the Variable from the pool."
   [var pool]
   (let [val (pool var)]
-    (if (or (nil? val)
-            (set? val))
+    (if (or (nil? val) (set? val))
       var
       (if (prolog-variable? val)
         (extract val pool)
@@ -207,8 +207,8 @@
         name-y (re-find (re-pattern #"[^']+") (:name y))]
     (if (same? name-x name-y)
       (if (re-matches (re-pattern #"[a-z][a-zA-Z_]*") name-x)
-        [(create-atom name-x) pool]
-        [(create-atom (str \' name-x \')) pool])
+        [(create name-x) pool]
+        [(create (str \' name-x \')) pool])
       [false pool])))
 
 (defmethod unify [PrologAtom PrologVariable]
@@ -359,8 +359,8 @@
           (if (false? new-term)
             [false pool]
             (recur (conj args new-term)
-                   new-pool
-                   (rest all))))))))
+                   (rest all)
+                   new-pool)))))))
 
 
 (defmethod generate PrologArguments
@@ -426,8 +426,7 @@
 (defrecord PrologList [head tail])
 
 
-(defmethod create clojure.lang.PersistentVector
-  [elems]
+(defn create-list [elems]
   (loop [head []
          all elems]
     (if (empty? all)
@@ -580,284 +579,261 @@
          tail-pool]))))
 
 
-;; ===========================================================================
-;;  Prolog Fact: cat(tom). member(X, Y).
-;;  Each fact has a name and arguments.
-;;  The name is a Prolog Atom.
-;;
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Fact: cat(tom). member(X, Y).                                           # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Each fact has a name and arguments.                                            # ;
+; #  The name is a Prolog Atom.                                                     # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologFact [atom args])
 
 
-(defn prolog-fact? [term]
-  (same? (type term)
-         logic.term.PrologFact))
+(defn create-fact
+  [[atom args]]
+  (PrologFact. (create atom)
+               (create-arguments args)))
 
 
-(defn create-fact [[sign atom args]]
-  (if (= sign :fact)
-    (PrologFact. (create-atom atom)
-                 (create-arguments args))
-    (throw (Exception. "To create a PrologFact from a vector it must start with :fact."))))
-
-
-(defn unify-facts [fact-x fact-y pool]
-  (if (false? (first (unify-atoms (:atom fact-x)
-                                  (:atom fact-y)
-                                  pool)))
+(defmethod unify [PrologFact PrologFact]
+  [fact-x fact-y pool]
+  (if (-> (unify (:atom fact-x) (:atom fact-y) pool)
+          (first)
+          (false?))
     [false pool]
-    (let [[new-args new-pool] (unify-arguments (:args fact-x)
-                                               (:args fact-y)
-                                               pool)]
+    (let [[new-args new-pool]
+          (unify (:args fact-x) (:args fact-y) pool)]
+
       (if (false? new-args)
         [false pool]
-        [(PrologFact. (:atom fact-x)
-                      new-args)
+        [(PrologFact. (:atom fact-x) new-args)
          new-pool]))))
 
+(defmethod unify [PrologFact PrologVariable]
+  [fact var pool]
+  (evaluate var fact pool))
 
-(defn generate-fact [fact names]
-  (let [[new-args new-names] (generate-arguments
-                              (:args fact)
-                              names)]
-    [(PrologFact. (:atom fact)
-                 new-args)
-     new-names]))
-
-
-(defn get-fact-variables [fact]
-  (get-arguments-variables (:args fact)))
+(defmethod unify [PrologVariable PrologFact]
+  [var fact pool]
+  (evaluate var fact pool))
 
 
-(defn output-fact [fact pool]
-  (str (output-atom (:atom fact) pool)
-       (output-arguments (:args fact) pool)))
+(defmethod generate PrologFact
+  [fact names]
+  (-> (generate (:args fact) names)
+      (#(assoc % 0 (PrologFact. (:atom fact) (first %))))))
 
 
-(defn substitude-fact [fact pool]
-  (let [[new-args new-pool] (substitude-arguments (:args fact) pool)]
-    [(PrologFact. (:atom fact) new-args)
-     new-pool]))
+(defmethod get-vars PrologFact
+  [fact]
+  (get-vars (:args fact)))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologFact
-
-  (unify
-   [x y pool]
-   (cond
-    (prolog-fact? y)
-      (unify-facts x y pool)
-    (prolog-variable? y)
-      (evaluate-variable y x pool)
-    :else
-      [false pool]))
-
-  (generate [fact names] (generate-fact fact names))
-  (get-variables [fact] (get-fact-variables fact))
-  (output [fact pool] (output-fact fact pool))
-  (substitude [fact pool] (substitude-fact fact pool)))
+(defmethod output PrologFact
+  [fact pool]
+  (str (output (:atom fact) pool)
+       (output (:args fact) pool)))
 
 
-(defn resolve-facts [fact-x fact-y pool]
+(defmethod reshape PrologFact
+  [fact pool]
+  (-> (reshape (:args fact) pool)
+      (#(assoc % 0 (PrologFact. (:args fact) (first %))))))
+
+
+(defmethod resolve [PrologFact PrologFact]
+  [fact-x fact-y pool]
   (let [[new-fact new-pool]
-        (unify-facts fact-x fact-y pool)]
+        (unify fact-x fact-y pool)]
     (if (false? new-fact)
       [false false pool]
       [true new-fact new-pool])))
 
 
-;; ===============================================================================
-;;  Prolog Disjunction: member(L, [1,2]); member(L, [2,3]).
-;;
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Disjunction: member(L, [1,2]); member(L, [2,3]).                        # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  This is logical "or". A Disjunction is proved false if and only if all its     # ;
+; #  Terms are false.                                                               # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologDisjunction [terms])
 
 
-(defn create-disjunction [[sign & terms]]
-  (if (= sign :disj)
-    (PrologDisjunction. (mapv create terms))
-    (throw (Exception. "To create a PrologDisjunction from a vector it must start with :disj."))))
+(defn create-disjunction [terms]
+  (PrologDisjunction. (mapv create terms)))
 
 
+
+;; TODO
 (defn prolog-disjunction? [term]
   (same? (type term)
          logic.term.PrologDisjunction))
 
 
-(defn get-disjunction-variables [disj]
-  (reduce #(clojure.set/union %1 (get-variables %2)) #{} (:terms disj)))
+(defmethod get-vars PrologDisjunction
+  [disj]
+  (reduce #(clojure.set/union %1 (get-vars %2))
+          #{}
+          (:terms disj)))
 
 
-(defn generate-disjunction [disj names]
-  (let [[new-terms new-names]
-        (generate-arguments (PrologArguments. (:terms disj))
-                            names)]
-    [(PrologDisjunction. (:args new-terms))
-     new-names]))
+(defmethod generate PrologDisjunction
+  [disj names]
+  (-> (generate (PrologArguments. (:terms disj)) names)
+      (#(assoc % 0 (PrologDisjunction. (-> % first :args))))))
 
 
-(defn output-disjunction [disj pool]
-  (if (empty? (:terms disj))
-    ""
-    (subs
-     (reduce #(str %1 "; " (output %2 pool))
-             ""
-             (:terms disj))
-     2)))
+(defmethod output PrologDisjunction
+  [disj pool]
+  (str "("
+       (->
+        (reduce #(str %1 "; " (output %2 pool))
+                ""
+                (:terms disj))
+        (subs 2))
+       ")"))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologDisjunction
-  (generate [disj names] (generate-disjunction disj names))
-  (get-variables [disj] (get-disjunction-variables disj))
-  (output [disj pool] (output-disjunction disj pool)))
+; =================================================================================== ;
+; =================================================================================== ;
 
-
-;; ===============================================================================
-;;  Prolog Conjunction: member(L, [1,2]), member(L, [2,3])
-;;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Conjunction: member(L, [1,2]); member(L, [2,3]).                        # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  This is logical "and". A Conjunction is proved true if and only if all its     # ;
+; #  Terms are true.                                                                # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologConjunction [terms])
 
 
-(defn create-conjunction [[sign & terms]]
-  (if (= sign :conj)
-    (PrologConjunction. (mapv create terms))
-    (throw (Exception. "To create a PrologConjunction from a vector it must start with :conj."))))
+(defn create-conjunction [terms]
+  (PrologConjunction. (mapv create terms)))
 
 
-(defn prolog-conjunction? [term]
-  (same? (type term)
-         logic.term.PrologConjunction))
-
-
-(defn get-conjunction-variables [conj]
-  (reduce #(clojure.set/union %1
-                              (get-variables %2))
+(defmethod get-vars PrologConjunction
+  [conj]
+  (reduce #(clojure.set/union %1 (get-vars %2))
           #{}
           (:terms conj)))
 
 
-(defn generate-conjunction [conj names]
-  (let [[new-terms new-names]
-        (generate-arguments (PrologArguments. (:terms conj))
-                            names)]
-    [(PrologConjunction. (:args new-terms))
-     new-names]))
+(defmethod generate PrologConjunction
+  [conj names]
+  (-> (generate (PrologArguments. (:terms conj)) names)
+      (#(assoc % 0 (PrologConjunction. (-> % first :args))))))
 
 
-
-(defn output-conjunction [conj pool]
-  (if (empty? (:terms conj))
-    ""
-    (str "("
-         (subs
-          (reduce #(str %1 ", " (output %2 pool))
-                  ""
-                  (:terms conj))
-          2)
-         ")")))
-
-
-(defn substitude-conjunction [conjunct pool]
-  (let [[res new-pool] (reduce (fn [[res pool] term]
-                                 (let [[new-term new-pool] (substitude term pool)]
-                                   [(conj res new-term)
-                                    new-pool]))
-                               [[] pool]
-                               (:terms conjunct))]
-    [(PrologConjunction. res)
-     new-pool]))
-
-
-(extend-protocol TermInterface
-  logic.term.PrologConjunction
-  (get-variables [conj] (get-conjunction-variables conj))
-  (generate [conj names] (generate-conjunction conj names))
-  (output [conj pool] (output-conjunction conj pool))
-  (substitude [conj pool] (substitude-conjunction conj pool)))
-
-
-
-;; ===============================================================================
-;;  Prolog Negation: not(member(1, [2,3])).
-;;
-(defrecord PrologNegation [term])
-
-
-(defn create-negation [[sign term]]
-  (if (= sign :not)
-    (PrologNegation. (create term))
-    (throw (Exception. "To create a PrologNegation from a vector it must start with :not."))))
-
-
-(defn prolog-negation? [term]
-  (same? (type term)
-         logic.term.PrologNegation))
-
-
-(defn get-negation-variables [neg]
-  (get-variables (:term neg)))
-
-
-(defn generate-negation [neg names]
-  (let [[new-term new-names]
-        (generate (:term neg) names)]
-    [(PrologNegation. new-term)
-     new-names]))
-
-
-(defn output-negation [neg pool]
-  (str "not("
-       (output (:term neg) pool)
+(defmethod output PrologConjunction
+  [conj pool]
+  (str "("
+       (->
+        (reduce #(str %1 ", " (output %2 pool))
+                ""
+                (:terms conj))
+        (subs 2))
        ")"))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologNegation
-  (get-variables [neg] (get-negation-variables neg))
-  (generate [neg names] (generate-negation neg names))
-  (output [neg pool] (output-negation neg pool)))
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Negation: not(member(1, [2,3])).                                        # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  This is logical "not". A Negation is proved true if and only if its Term is    # ;
+; #  proved false (and the other way around).                                       # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+(defrecord PrologNegation [term])
 
 
+(defn create-negation [[term]]
+  (PrologNegation. (create term)))
 
-;; ===============================================================================
-;;  Prolog Expression: 2 + 2, X is 3 * 8.
-;;
-;;                                           is
-;;                                          /  \
-;;  Actualy, they look like this:   +   ,  X    *
-;;                                 / \         / \
-;;                                2   2       3   5
-;;
-;;  They are secial type of Prolog Facts.
-;;  They have exactly two arguments and are used only for mathematical expressions.
-;;
+
+(defmethod get-vars PrologNegation
+  [neg]
+  (-> neg :term get-vars))
+
+
+(defmethod generate PrologNegation
+  [neg names]
+  (-> neg :term (generate names)))
+
+
+(defmethod output PrologNegation
+  [neg pool]
+  (-> (output (:term neg) pool)
+      (#(str "not(" % ")"))))
+
+
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Expression: 2 + 2, X is 3 * 8.                                          # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #                                          is                                     # ;
+; #                                         /  \                                    # ;
+; #  Actualy, they look like this:  +   ,  X    *                                   # ;
+; #                                / \         / \                                  # ;
+; #                               2   2       3   5                                 # ;
+; #                                                                                 # ;
+; #  They are secial type of Prolog Facts.                                          # ;
+; #  They have exactly two arguments and are used only for mathematical expressions.# ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologExpression [name left right])
 
 
-(defn create-expression [[sign left name right]]
-  (if (= sign :expr)
-    (PrologExpression. name (create left) (create right))
-    (throw (Exception. "To create a PrologExpression from a vector it must start with :expr"))))
+(defn create-expression [[left name right]]
+  (PrologExpression. name (create left) (create right)))
 
 
-(defn prolog-expression? [term]
-  (same? (type term)
-         logic.term.PrologExpression))
+(defmethod generate PrologExpression
+  [expr names]
+  (let [[new-left names-left]
+        (generate (:left expr) names)
 
+        [new-right new-names]
+        (generate (:right expr) names-left)]
 
-(defn generate-expression [expr names]
-  (let [[new-left names-left] (generate (:left expr) names)
-        [new-right new-names] (generate (:right expr) names-left)]
     [(PrologExpression. (:name expr) new-left new-right)
      new-names]))
 
 
-(defn get-expression-variables [expr]
-  (clojure.set/union (get-variables (:left expr))
-                     (get-variables (:right expr))))
+(defmethod get-vars PrologExpression
+  [expr]
+  (clojure.set/union
+   (get-vars (:left expr))
+   (get-vars (:right expr))))
 
 
-(defn output-expression [expr pool]
+(defmethod output PrologExpression
+  [expr pool]
   (str "("
        (output (:left expr) pool)
        " "
@@ -867,109 +843,98 @@
        ")"))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologExpression
-  (generate [expr names] (generate-expression expr names))
-  (get-variavles [expr] (get-expression-variables expr))
-  (output [expr pool] (output-expression expr pool)))
+; =================================================================================== ;
+; =================================================================================== ;
 
-
-
-;; ==================================================================================
-;;  Prolog Formula: random(Base, Max, Number).
-;;
-;;  A Prolog Formula is a Prolog Fact that executes a function when it gets resolved.
-;;  User cannot create Formulas, they are only built-in.
-;;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Formula: random(Base, Max, Number).                                     # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  A Prolog Formula is a special type of Prolog Fact, that executes               # ;
+; #  a function when it is resolved.                                                # ;
+; #  The user cannot create Formulas, they are only built-in.                       # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologFormula [fact func])
 
 
-(defn create-formula [[sign name args func]]
-  (if (= sign :form)
-    (PrologFormula. (create-fact [:fact name args])
-                    func)
-    (throw (Exception. "To create a Prolog Formula from a vector it must start with :form."))))
+(defn create-formula [[name args func]]
+  (PrologFormula. (create-fact [name args])
+                  func))
 
 
-(defn prolog-formula? [term]
-  (same? (type term)
-         logic.term.PrologFormula))
+(defmethod generate PrologFormula
+  [form names]
+  (-> (generate (:fact form) names)
+      (#(assoc % 0 (PrologFormula. (first %) (:func form))))))
 
 
-(defn generate-formula [form names]
-  (let [[new-fact new-names] (generate-fact (:fact form) names)]
-    [(PrologFormula. new-fact (:func form))
-     new-names]))
+; =================================================================================== ;
+; =================================================================================== ;
 
-
-(extend-protocol TermInterface
-  logic.term.PrologFormula
-  (generate [form names] (generate-formula form names)))
-
-
-;; ==================================================================================
-;;  Prolog Rule: member(A, [_ | X]) :- member(A, X).
-;;
-;;  A Prolog Rule has a head and a body.
-;;  The head is a Prolog Structure. A Rule is defined by it's head.
-;;  The body is a Term: Fact, Conjunction or Disjunction.
-;;  The symbol :- is called neck. It means "body => head",
-;;  or "if the body is true, then the head is true."
-;;
-
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Prolog Rule: member(A, [_ | X]) :- member(A, X).                               # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  A Prolog Rule has a head and a body.                                           # ;
+; #  The head is a Prolog Structure. A Rule is defined by it's head.                # ;
+; #  The body is a Term: Fact, Conjunction or Disjunction.                          # ;
+; #  The symbol :- is called neck. It means "body => head",                         # ;
+; #  or "if the body is true, then the head is true."                               # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (defrecord PrologRule [head body])
 
 
-(defn create-rule [[sign name args body]]
-  (if (same? sign :rule)
-    (let [new-head (create-fact [:fact name args])
-          new-body (create body)]
-      (PrologRule. new-head new-body))
-    (throw
-     (Exception. "To create a PrologRule from a vector, it must start with :rule keyword."))))
+(defn create-rule [[name args body]]
+  (let [new-head (create-fact [:fact name args])
+        new-body (create body)]
+    (PrologRule. new-head new-body)))
 
 
-(defn prolog-rule? [rule]
-  (same? (type rule)
-         logic.term.PrologRule))
-
-
-(defn generate-rule
+(defmethod generate PrologRule
   [rule names]
   (let [[new-head head-names]
-        (generate-fact (:head rule) names)
+        (generate (:head rule) names)
 
         [new-body new-names]
         (generate (:body rule) head-names)]
+
     [(PrologRule. new-head new-body)
      new-names]))
 
 
-(defn substitude-rule [rule pool]
-  (let [[new-head head-pool] (substitude-fact (:head rule) pool)
-        [new-body body-pool] (substitude (:body rule) head-pool)]
+(defmethod reshape PrologRule
+  [rule pool]
+  (let [[new-head head-pool]
+        (reshape (:head rule) pool)
+
+        [new-body body-pool]
+        (reshape (:body rule) head-pool)]
+
     [(PrologRule. new-head new-body)
      body-pool]))
 
 
-(defn output-rule [rule pool]
+(defmethod output PrologRule
+  [rule pool]
   (str (output (:head rule) pool)
        " :- "
        (output (:body rule) pool)))
 
 
-(extend-protocol TermInterface
-  logic.term.PrologRule
-
-  (generate [rule names] (generate-rule rule names))
-  (output [rule pool] (output-rule rule pool))
-  (substitude [rule pool] (substitude-rule [rule pool])))
-
-
-(defn resolve-fact->rule [fact rule pool]
+(defmethod resolve [PrologFact PrologRule]
+  [fact rule pool]
   (let [[status new-fact new-pool]
-        (resolve-facts fact (:head rule) pool)
-        [new-body final-pool] (substitude (:body rule) new-pool)]
+        (resolve fact (:head rule) pool)
+
+        [new-body final-pool]
+        (reshape (:body rule) new-pool)]
+
     (if (false? status)
       [false false pool]
       [:unresolved
@@ -977,9 +942,8 @@
        final-pool])))
 
 
-
-;; =========================================================
-;;
+; =================================================================================== ;
+; =================================================================================== ;
 
 
 (defmethod create String
@@ -997,3 +961,32 @@
 
    :else
    (throw (Exception. (str "Unable to create a PrologTerm from " inp "!")))))
+
+
+(defmethod create clojure.lang.PersistentVector
+  [[key & rest :as all]]
+  (cond
+
+   (= key :fact)
+   (create-fact rest)
+
+   (= key :disj)
+   (create-disjunction rest)
+
+   (= key :conj)
+   (create-conjunction rest)
+
+   (= key :not)
+   (create-negation rest)
+
+   (= key :expr)
+   (create-expression rest)
+
+   (= key :form)
+   (create-formula rest)
+
+   (= key :rule)
+   (create-rule rest)
+
+   :else
+   (create-list all)))
