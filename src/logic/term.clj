@@ -879,6 +879,16 @@
       (#(assoc % 0 (PrologFormula. (first %) (:func form))))))
 
 
+(defmethod resolve [PrologAtom PrologFormula]
+  [atom form pool]
+  (if (and (= 0 (-> form :fact :args :args count))
+           (unify atom (-> form :fact :atom) pool))
+    (do
+      ((:func form) (:args form))
+      [true true pool])
+    [false false pool]))
+
+
 ; =================================================================================== ;
 ; =================================================================================== ;
 

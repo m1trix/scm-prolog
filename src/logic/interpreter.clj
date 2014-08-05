@@ -3,6 +3,9 @@
         [logic.term]))
 
 
+; =================================================================================== ;
+; =================================================================================== ;
+
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 ; #                                                                                 # ;
 ; #  This is the source of all knowledge.                                           # ;
@@ -10,6 +13,11 @@
 ; #  The interpreter knows only the things that are included in the knowledge-base. # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+(def debug (atom {:trace false
+                  :info false
+                  :redo false}))
+
+
 (def knowledge-base
   (atom {"member"
          [(create [:fact "member" ["A" ["A" :| "_"]]])
@@ -26,12 +34,9 @@
           (create [:rule "perm" [["A" :| "X"] "Z"]
                    [:conj
                     [:fact "perm" ["X" "Y"]]
-                    [:fact "insert" ["A" "Y" "Z"]]]])]}))
+                    [:fact "insert" ["A" "Y" "Z"]]]])]
 
-
-(def debug (atom {:trace true
-                  :info false
-                  :redo false}))
+         "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])}))
 
 
 (defmulti prove #(-> %& first type))
@@ -41,10 +46,6 @@
 (defn evaluate-pool
   [pool]
   (reduce #(second (reshape %2 %1)) pool (keys pool)))
-
-
-(evaluate-pool {(create "X") (create [1 :| "Y"])
-                (create "Y") (create [2 3])})
 
 
 (defn print-var [var work-pool]
@@ -71,6 +72,42 @@
               (when (next vars)
                 (println ",")))
             (recur (rest vars))))))))
+
+
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Atom.                                                    # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
+(defmethod prove logic.term.PrologAtom
+  [atom query pool stack _ _]
+  (let [target (@knowledge-base (:name atom))]
+    (if (nil? target)
+      [false {} stack]
+      (let [[answer _ _] (resolve atom target pool)]
+        (if (true? answer)
+          [true pool stack]
+          [false {} stack])))))
+
+
+(defmethod replace logic.term.PrologAtom
+  [atom term pool]
+  [term pool])
+
+
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Fact.                                                    # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
 (defmethod prove logic.term.PrologFact
@@ -144,6 +181,16 @@
   (reshape term pool))
 
 
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Rule.                                                    # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
 (defmethod prove logic.term.PrologRule
   [rule query pool stack depth start]
   (when (:info @debug)
@@ -171,11 +218,54 @@
           (read-line))
         [true new-pool new-stack]))))
 
+
 (defmethod replace logic.term.PrologRule
   [rule term pool]
   (let [[new-term new-pool] (replace (:body rule) term pool)]
     [(->PrologRule (:head rule) new-term)
      new-pool]))
+
+
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Conjunction.                                             # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
+(defmethod prove logic.term.PrologConjunction
+  [conj in-query in-pool in-stack depth start]
+  (loop [goals (:terms conj)
+         query in-query
+         pool in-pool
+         stack in-stack
+         index start]
+    (if (empty? goals)
+      [true pool stack]
+      (let [[status new-pool new-stack]
+            (prove (first goals) query pool stack depth index)]
+        (if (false? status)
+          [false {} new-stack]
+          (let [[new-query final-pool] (replace query true new-pool)]
+            (recur (rest goals)
+                   new-query
+                   final-pool
+                   new-stack
+                   0)))))))
+
+
+(defmethod replace logic.term.PrologConjunction
+  [conj term pool]
+  (if (= 1 (-> conj :terms count))
+    (reshape term pool)
+    (if (true? term)
+      (reshape (->PrologConjunction (-> conj :terms (subvec 1)))
+               pool)
+      (reshape (->PrologConjunction (-> conj :terms (assoc 0 term)))
+               pool))))
 
 
 (defn interpret [term in-pool in-stack depth start]
