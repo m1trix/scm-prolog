@@ -35,13 +35,16 @@
 
 
 (defmulti prove #(-> %& first type))
+(defmulti replace #(-> %& first type))
 
 
 (defn evaluate-pool
   [pool]
-  (->>
-   (keys pool)
-   (reduce #(-> (reshape % pool) first) pool pool)))
+  (reduce #(second (reshape %2 %1)) pool (keys pool)))
+
+
+(evaluate-pool {(create "X") (create [1 :| "Y"])
+                (create "Y") (create [2 3])})
 
 
 (defn print-var [var work-pool]
@@ -58,7 +61,7 @@
                       main-pool main-pool)]
 
     (if (empty? not-nil)
-      (print-green "true")
+      (print-green "true ")
       (loop [vars not-nil]
         (when-not (empty? vars)
           (let [out (print-var (first vars) work-pool)]
@@ -71,7 +74,7 @@
 
 
 (defmethod prove logic.term.PrologFact
-  [fact pool stack depth start]
+  [fact query pool stack depth start]
   (let [name (-> fact :atom :name)
         all (@knowledge-base name)
         limit (count all)]
@@ -103,9 +106,12 @@
             [false {} stack])
           (let [[target _] (generate (first clauses) {})
 
-                [status new-term new-pool]
+                [status new-term res-pool]
                 (resolve fact target pool)
-                new-stack (conj stack [fact pool (inc index)])]
+
+                new-pool (evaluate-pool res-pool)
+
+                new-stack (conj stack [query pool (inc index)])]
             (cond
 
              (false? status)
@@ -129,24 +135,31 @@
              (do
                (when (:info @debug)
                  (println-gray (str "  INFO: Proving successful! Resolved with clause " index ".")))
-               (prove new-term new-pool new-stack depth 0))))))))))
+               (let [[re-query re-pool] (replace query new-term new-pool)]
+                 (prove new-term re-query re-pool new-stack depth 0)))))))))))
+
+
+(defmethod replace logic.term.PrologFact
+  [fact term pool]
+  (reshape term pool))
 
 
 (defmethod prove logic.term.PrologRule
-  [rule pool stack depth start]
+  [rule query pool stack depth start]
   (when (:info @debug)
     (println-gray "  INFO: Trying to prove a Rule."))
   (let [[answer new-pool new-stack]
-        (prove (:body rule) pool stack (inc depth) start)]
+        (prove (:body rule) query pool stack (inc depth) start)]
     (if (false? answer)
       (do
         (when (:info @debug)
           (println-gray "  INFO: Failed to prove a Rule."))
         (when (:trace @debug)
-          (print-red "  Fail: ")
-          (print (str "(" depth ")") (output (:head rule) pool) "? ")
-          (flush)
-          (read-line))
+          (when-not (:redo @debug)
+            (print-red "  Fail: ")
+            (print (str "(" depth ")") (output (:head rule) pool) "? ")
+            (flush)
+            (read-line)))
         [false {} new-stack])
       (do
         (when (:info @debug)
@@ -158,6 +171,12 @@
           (read-line))
         [true new-pool new-stack]))))
 
+(defmethod replace logic.term.PrologRule
+  [rule term pool]
+  (let [[new-term new-pool] (replace (:body rule) term pool)]
+    [(->PrologRule (:head rule) new-term)
+     new-pool]))
+
 
 (defn interpret [term in-pool in-stack depth start]
   (loop [query term
@@ -165,7 +184,7 @@
          stack in-stack
          index start]
     (let [[answer new-pool new-stack]
-          (prove query pool stack depth index)]
+          (prove query query pool stack depth index)]
       (if (false? answer)
         (if (empty? stack)
           [false {} []]
