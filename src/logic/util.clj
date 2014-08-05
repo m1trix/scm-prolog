@@ -89,6 +89,12 @@
   (print (str "\u001b[1;32m" s "\u001b[0m")))
 
 
+(defn print-yellow
+  "Prints a string with a yellow color."
+  [s]
+  (print (str "\u001b[1;33m" s "\u001b[0m")))
+
+
 (defn print-gray
   "Prints a string with a gray color."
   [s]
@@ -102,6 +108,10 @@
 
 (defn println-green [s]
   (print-green s)
+  (println))
+
+(defn println-yellow [s]
+  (print-yellow s)
   (println))
 
 (defn println-red [s]

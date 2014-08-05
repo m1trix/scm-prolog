@@ -12,17 +12,17 @@
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
 
-  (let [fact (create [:fact "member" ["L" [1 2 3]]])]
+  (let [fact (create [:fact "insert" [42 [1 2 3] "NewList"]])]
     (?- fact))
 
 
   (let [input (atom "")]
     (while (different? @input "halt.")
       (do
-        (when @trace
+        (when (-> @debug :trace)
           (print "[trace] "))
-        (when (or @watch-stack @watch-pool @watch-resolve)
-          (print "[debug] "))
+        (when (-> @debug :watch)
+          (print "[watch] "))
         (print " ?- \u001b[33m")
         (flush)
         (reset! input (read-line))

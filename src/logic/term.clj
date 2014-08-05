@@ -12,6 +12,11 @@
 (defmulti resolve (fn [x y _] [(type x) (type y)]))
 
 
+(defmethod unify :default
+  [_ _ pool]
+  [false pool])
+
+
 (defmethod reshape :default
   [term pool]
   [term pool])
@@ -121,11 +126,13 @@
   (let [real-var (extract var pool)]
     (if (= term real-var)
       [var pool]
-      (->>
-       (bounds real-var pool)
-       (reduce #(assoc %1 %2 term) (dissoc pool real-var))
-       (#(assoc % (extract var pool) term))
-       (vector term)))))
+      (if (= PrologVariable (type real-var))
+        (->>
+         (bounds real-var pool)
+         (reduce #(assoc %1 %2 term) (dissoc pool real-var))
+         (#(assoc % (extract var pool) term))
+         (vector term))
+        (unify real-var term pool)))))
 
 
 (defn bind
@@ -651,6 +658,7 @@
   [fact-x fact-y pool]
   (let [[new-fact new-pool]
         (unify fact-x fact-y pool)]
+
     (if (false? new-fact)
       [false false pool]
       [true new-fact new-pool])))
