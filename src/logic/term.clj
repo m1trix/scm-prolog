@@ -444,7 +444,7 @@
     (if (empty? all)
       (PrologList. head [])
       (let [elem (first all)]
-        (if (= :| elem)
+        (if (= "|" elem)
           (PrologList. head (-> all second create))
           (recur (conj head (create elem))
                  (rest all)))))))
