@@ -22,28 +22,6 @@
 
 (def knowledge-base
   (atom {
-         "member"
-         [(create [:fact "member" ["A" ["A" :| "_"]]])
-          (create [:rule "member" ["A" ["_" :| "X"]]
-                   [:fact "member" ["A" "X"]]])]
-
-         "insert"
-         [(create [:fact "insert" ["A" "X" ["A" :| "X"]]])
-          (create [:rule "insert" ["A" ["B" :| "X"] ["B" :| "Y"]]
-                   [:fact "insert" ["A" "X" "Y"]]])]
-
-         "exclude"
-         [(create [:fact "exclude" ["A" ["A" :| "X"] "X"]])
-          (create [:rule "exclude" ["A" ["B" :| "X"] ["B" :| "Y"]]
-                   [:fact "exclude" ["A" "X" "Y"]]])]
-
-         "perm"
-         [(create [:fact "perm" [["A"] ["A"]]])
-          (create [:rule "perm" [["A" :| "X"] "Z"]
-                   [:conj
-                    [:fact "perm" ["X" "Y"]]
-                    [:fact "insert" ["A" "Y" "Z"]]]])]
-
          "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])}))
 
 
