@@ -11,17 +11,10 @@
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
-  (let [fact (create [:conj
-                      [:fact "member" ["First" [1 2 3]]]
-                      [:fact "member" ["Second" [1 2 3]]]])]
-    (?- fact))
-
-  (let [term (create "trace")]
-    (?- term))
 
   (let [fact (create [:conj
-                      [:fact "member" ["First" [1 2 3]]]
-                      [:fact "member" ["Second" [1 2 3]]]])]
+                      [:fact "perm" [[1 2 3] "Permutation"]]
+                      [:fact "perm" [[3 2 1] "Permutation"]]])]
     (?- fact))
 
 

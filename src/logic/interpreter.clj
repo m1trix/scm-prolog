@@ -1,4 +1,4 @@
- (ns logic.interpreter
+  (ns logic.interpreter
   (:use [logic.util]
         [logic.term]))
 
@@ -15,11 +15,14 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (def debug (atom {:trace false
                   :info false
-                  :redo false}))
+                  :redo false
+                  :watch {:query false
+                          :stack false}}))
 
 
 (def knowledge-base
-  (atom {"member"
+  (atom {
+         "member"
          [(create [:fact "member" ["A" ["A" :| "_"]]])
           (create [:rule "member" ["A" ["_" :| "X"]]
                    [:fact "member" ["A" "X"]]])]
@@ -28,6 +31,11 @@
          [(create [:fact "insert" ["A" "X" ["A" :| "X"]]])
           (create [:rule "insert" ["A" ["B" :| "X"] ["B" :| "Y"]]
                    [:fact "insert" ["A" "X" "Y"]]])]
+
+         "exclude"
+         [(create [:fact "exclude" ["A" ["A" :| "X"] "X"]])
+          (create [:rule "exclude" ["A" ["B" :| "X"] ["B" :| "Y"]]
+                   [:fact "exclude" ["A" "X" "Y"]]])]
 
          "perm"
          [(create [:fact "perm" [["A"] ["A"]]])
@@ -41,6 +49,11 @@
 
 (defmulti prove #(-> %& first type))
 (defmulti replace #(-> %& first type))
+
+
+(defmethod replace :default
+  [what _ pool]
+  [what pool])
 
 
 (defn evaluate-pool
@@ -72,6 +85,16 @@
               (when (next vars)
                 (println ",")))
             (recur (rest vars))))))))
+
+
+(defn output-stack [stack]
+  (println-gray "    STACK:")
+  (doseq
+    [[term pool index] stack]
+    (do
+      (print "      ")
+      (print (str "[" index "] "))
+      (println-gray (output term pool)))))
 
 
 ; =================================================================================== ;
@@ -116,7 +139,14 @@
         all (@knowledge-base name)
         limit (count all)]
     (when (:info @debug)
-      (println-gray (str "  INFO: Trying to prove a Fact with start index " start ".")))
+      (print-gray "    INFO: Proving ")
+      (print (output fact pool))
+      (println-gray "."))
+    (when (-> @debug :watch :query)
+      (println-gray (str "    GOAL:  " (output fact pool)))
+      (println-gray (str "    QUERY: " (output query pool))))
+    (when (-> @debug :watch :stack)
+      (output-stack stack))
     (if (>= start limit)
       [false {} stack]
       (do
@@ -133,8 +163,6 @@
              index start]
         (if (empty? clauses)
           (do
-            (when (:info @debug)
-              (println-gray "  INFO: Proving failed! No clause mathes the Fact."))
             (when (:trace @debug)
               (print-red "  Fail: ")
               (print (str "(" depth ")") (output fact pool) "? ")
@@ -154,13 +182,30 @@
              (false? status)
              (do
                (when (:info @debug)
-                 (println-gray (str "  INFO: Failing to match with index " index ".")))
+                 (print-gray "    INFO: ")
+                 (print (output fact pool))
+                 (print-gray "[")
+                 (print index)
+                 (print-gray "] is ")
+                 (print "false")
+                 (println-gray "."))
                (recur (rest clauses) (inc index)))
 
              (true? status)
              (do
                (when (:info @debug)
-                 (println-gray (str "  INFO: Proving successful! Resolved with clause " index ".")))
+                 (print-gray "    INFO: ")
+                 (print (output fact new-pool))
+                 (print-gray "[")
+                 (print index)
+                 (print-gray "] is ")
+                 (print "true")
+                 (println-gray ".")
+                 (println-gray "    INFO: Pushing a Choisepoint:")
+                 (print-gray "          [query:] ")
+                 (println (output query pool))
+                 (print-gray "          [index:] ")
+                 (println (inc index)))
                (when (:trace @debug)
                  (print-green "  Exit: ")
                  (print (str "(" depth ")") (output fact new-pool) "? ")
@@ -171,14 +216,27 @@
              :else
              (do
                (when (:info @debug)
-                 (println-gray (str "  INFO: Proving successful! Resolved with clause " index ".")))
+                 (print-gray "    INFO: ")
+                 (print (output fact new-pool))
+                 (print-gray "[")
+                 (print index)
+                 (print-gray "] is ")
+                 (print "true")
+                 (println-gray ".")
+                 (println-gray "    INFO: Pushing a Choisepoint:")
+                 (print-gray "          [query:] ")
+                 (println (output query pool))
+                 (print-gray "          [index:] ")
+                 (println (inc index)))
                (let [[re-query re-pool] (replace query new-term new-pool)]
                  (prove new-term re-query re-pool new-stack depth 0)))))))))))
 
 
 (defmethod replace logic.term.PrologFact
   [fact term pool]
-  (reshape term pool))
+  (if (true? term)
+    [true pool]
+    (reshape term pool)))
 
 
 ; =================================================================================== ;
@@ -194,13 +252,15 @@
 (defmethod prove logic.term.PrologRule
   [rule query pool stack depth start]
   (when (:info @debug)
-    (println-gray "  INFO: Trying to prove a Rule."))
+    (println-gray "    INFO: Proving Rule."))
   (let [[answer new-pool new-stack]
         (prove (:body rule) query pool stack (inc depth) start)]
     (if (false? answer)
       (do
         (when (:info @debug)
-          (println-gray "  INFO: Failed to prove a Rule."))
+          (print-gray "    INFO: Rule is ")
+          (print "false")
+          (println-gray "."))
         (when (:trace @debug)
           (when-not (:redo @debug)
             (print-red "  Fail: ")
@@ -210,7 +270,9 @@
         [false {} new-stack])
       (do
         (when (:info @debug)
-          (println-gray "  INFO: Rule was successfuly proved."))
+          (print-gray "    INFO: Rule is ")
+          (print "true")
+          (println-gray "."))
         (when (:trace @debug)
           (print-green "  Exit: ")
           (print (str "(" depth ")") (output (:head rule) new-pool) "? ")
@@ -222,8 +284,10 @@
 (defmethod replace logic.term.PrologRule
   [rule term pool]
   (let [[new-term new-pool] (replace (:body rule) term pool)]
-    [(->PrologRule (:head rule) new-term)
-     new-pool]))
+    (if (true? new-term)
+      [true new-pool]
+      [(->PrologRule (:head rule) new-term)
+       new-pool])))
 
 
 ; =================================================================================== ;
@@ -243,8 +307,17 @@
          pool in-pool
          stack in-stack
          index start]
+    (when (:info @debug)
+          (print-gray "    INFO: Proving Conjunction[")
+          (print (count goals))
+          (println-gray "]."))
     (if (empty? goals)
-      [true pool stack]
+      (do
+        (when (:info @debug)
+          (print-gray "    INFO: Conjunction is")
+          (print "true")
+          (println-gray "."))
+        [true pool stack])
       (let [[status new-pool new-stack]
             (prove (first goals) query pool stack depth index)]
         (if (false? status)
@@ -259,16 +332,26 @@
 
 (defmethod replace logic.term.PrologConjunction
   [conj term pool]
-  (if (= 1 (-> conj :terms count))
-    (reshape term pool)
-    (if (true? term)
-      (reshape (->PrologConjunction (-> conj :terms (subvec 1)))
-               pool)
-      (reshape (->PrologConjunction (-> conj :terms (assoc 0 term)))
-               pool))))
+  (let [elem (-> conj :terms first)
+        [new-term new-pool] (replace elem term pool)]
+    (if (true? new-term)
+      (if (-> conj :terms next)
+        (reshape (-> conj :terms (subvec 1) ->PrologConjunction)
+                 new-pool)
+        [new-term new-pool])
+      (reshape (-> conj :terms (assoc 0 new-term) ->PrologConjunction)
+               new-pool))))
 
 
-(defn interpret [term in-pool in-stack depth start]
+; =================================================================================== ;
+; =================================================================================== ;
+
+
+(defn interpret
+  "Given a term, pool, stack, depth and start index,
+   the function proves the term and automaticly backtracks
+   if it is necassary."
+  [term in-pool in-stack depth start]
   (loop [query term
          pool in-pool
          stack in-stack
@@ -276,11 +359,11 @@
     (let [[answer new-pool new-stack]
           (prove query query pool stack depth index)]
       (if (false? answer)
-        (if (empty? stack)
+        (if (empty? new-stack)
           [false {} []]
-          (let [[old-query old-pool old-index] (peek stack)]
+          (let [[old-query old-pool old-index] (peek new-stack)]
             (swap! debug assoc :redo true)
-            (recur old-query old-pool (pop stack) old-index)))
+            (recur old-query old-pool (pop new-stack) old-index)))
         [true new-pool new-stack]))))
 
 

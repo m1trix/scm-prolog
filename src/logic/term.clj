@@ -32,6 +32,11 @@
   #{})
 
 
+(defmethod output :default
+  [what _]
+  (str what))
+
+
 ; =================================================================================== ;
 ; =================================================================================== ;
 
@@ -745,6 +750,14 @@
 (defmethod generate PrologConjunction
   [conj names]
   (-> (generate (PrologArguments. (:terms conj)) names)
+      (#(assoc % 0 (PrologConjunction. (-> % first :args))))))
+
+
+(defmethod reshape PrologConjunction
+  [conj pool]
+  (-> (:terms conj)
+      (PrologArguments.)
+      (reshape pool)
       (#(assoc % 0 (PrologConjunction. (-> % first :args))))))
 
 
