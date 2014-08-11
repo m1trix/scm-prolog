@@ -16,7 +16,7 @@
                %
                (-> %
                    (clojure.string/replace #"[ ]+" " ")
-                   (clojure.string/replace #"(?<=[a-z])[ ](?=[a-z(])" "'")
+                   (clojure.string/replace #"(?<=[a-z0-9A-Z])[ ](?=[a-zA-Z0-9\[(])" "'")
                    (clojure.string/replace #"[ ]" "")
                    (clojure.string/replace #"'" " "))))
        (reduce str)))
@@ -103,7 +103,8 @@
         (if-not (= "" var) [var res]
 
           (let [[num res] (find-number input)]
-            (if-not (= "" num) [(read-string num) res])))))))
+            (if-not (= "" num) [(read-string num) res]
+              (throw (Exception. (str "Missing operator before: \"" input "\"."))))))))))
 
 
 
@@ -160,9 +161,6 @@
        (= \, (first text))
        (recur args (subs text 1))
 
-       (= \space (first text))
-       (recur args (subs text 1))
-
        (= \) (first text))
        [(create-arguments args) (subs text 1)]
 
@@ -201,5 +199,3 @@
        (recur rest-text
               ops
               (conj obs term))))))
-
-(parse "member(X, [ 1,2,3,4]).")
