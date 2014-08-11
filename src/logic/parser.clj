@@ -8,6 +8,20 @@
   [:require [logic.term :refer :all]])
 
 
+(defn remove-spaces [input]
+  (->> input
+       (re-seq (re-pattern #"\"[^\"]*\"|\'[^\']*\'|[^'\"]+"))
+       (map #(if (or (re-matches (re-pattern #"\"[^\"]*\"") %)
+                     (re-matches (re-pattern #"'[^']*'") %))
+               %
+               (-> %
+                   (clojure.string/replace #"[ ]+" " ")
+                   (clojure.string/replace #"(?<=[a-z])[ ](?=[a-z(])" "'")
+                   (clojure.string/replace #"[ ]" "")
+                   (clojure.string/replace #"'" " "))))
+       (reduce str)))
+
+
 (defn find-atom-single
   "If a string starts with a single word atom name
   the function returns the name and the rest of the string.
@@ -86,7 +100,10 @@
     (if-not (= "" atom) [atom res]
 
       (let [[var res] (find-variable input)]
-        (if-not (= "" var) [var res])))))
+        (if-not (= "" var) [var res]
+
+          (let [[num res] (find-number input)]
+            (if-not (= "" num) [(read-string num) res])))))))
 
 
 
@@ -106,12 +123,30 @@
       [(create var) result])))
 
 
-(defn extract-number
-  [input]
-  (let [[num res] (find-number input)]
-    (if (= "" num)
-      [nil num]
-      [(-> num read-string create) res])))
+(defn extract-list [input]
+  (if-not (= \[ (first input))
+    [nil input]
+    (loop [elems []
+           text (subs input 1)]
+      (cond
+
+       (= \, (first text))
+       (recur elems (subs text 1))
+
+       (= \[ (first text))
+       (let [[new-list new-text] (extract-list text)]
+         (recur (conj elems new-list) new-text))
+
+       (= \| (first text))
+       (recur (conj elems "|")
+              (subs text 1))
+
+       (= \] (first text))
+       [elems (subs text 1)]
+
+       :else
+       (let [[term new-text] (find-next text)]
+         (recur (conj elems term) new-text))))))
 
 
 (defn extract-arguments
@@ -125,8 +160,15 @@
        (= \, (first text))
        (recur args (subs text 1))
 
+       (= \space (first text))
+       (recur args (subs text 1))
+
        (= \) (first text))
        [(create-arguments args) (subs text 1)]
+
+       (= \[ (first text))
+       (let [[list new-text] (extract-list text)]
+         (recur (conj args list) new-text))
 
        :else
        (let [[term new-text] (find-next text)]
@@ -143,7 +185,7 @@
 
 
 (defn parse [input]
-  (loop [text input
+  (loop [text (remove-spaces input)
          ops []
          obs []]
     (cond
@@ -151,8 +193,13 @@
      (= "." text)
      (peek obs)
 
+     (= \space (first text))
+     (recur (subs text 1) ops obs)
+
      :else
      (let [[term rest-text] (extract-next text)]
        (recur rest-text
               ops
               (conj obs term))))))
+
+(parse "member(X, [ 1,2,3,4]).")
