@@ -1,7 +1,7 @@
 (ns logic.core
-  (:use [logic.util]
-        [logic.term]
-        [logic.interpreter]))
+  (:require [logic.interpreter :refer :all]
+            [logic.parser :refer :all]
+            [logic.util :refer :all]))
 
 
 
@@ -11,22 +11,19 @@
   [& args]
   (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
 
+  (loop []
+    (when (:trace @debug)
+      (print "[T]" ))
+    (print "?- ")
+    (print "\u001b[33m")
+    (flush)
+    (let [input (read-line)]
+      (print "\u001b[0m")
+      (try
+        (?- (parse input))
+        (catch Exception e
+          (println-red (str "ERROR: "(.getMessage e)))))
+      (when (false? (:exit @debug))
+        (recur))))
 
-  (let [fact (create [:conj
-                      [:fact "perm" [[1 2 3] "Permutation"]]
-                      [:fact "perm" [[3 2 1] "Permutation"]]])]
-    (?- fact))
-
-
-  (let [input (atom "")]
-    (while (different? @input "halt.")
-      (do
-        (when (-> @debug :trace)
-          (print "[trace] "))
-        (when (-> @debug :watch)
-          (print "[watch] "))
-        (print " ?- \u001b[33m")
-        (flush)
-        (reset! input (read-line))
-        (print "\u001b[0m"))))
   (println "\u001b[33mHope to see you again soon! \u001b[0m \n"))

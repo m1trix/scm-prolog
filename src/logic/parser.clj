@@ -5,7 +5,7 @@
 ;;  that it describes.
 ;;
 (ns logic.parser
-  [:use [logic.term]])
+  [:require [logic.term :refer :all]])
 
 
 (defn find-atom-single
@@ -14,12 +14,12 @@
   Otherwise it returns empty name and the input string."
   [input]
   (if (re-matches (re-pattern #"[a-z]") (subs input 0 1))
-    (loop [name (-> input first str)
-           result (rest input)]
-      (if (re-matches (re-pattern #"[a-zA-Z0-9_]") (-> result first str))
-        (recur (str name (first result))
-               (rest result))
-        [name (reduce str result)]))
+    (loop [name (subs input 0 1)
+           text (subs input 1)]
+      (if (re-matches (re-pattern #"[a-zA-Z0-9_]") (subs text 0 1))
+        (recur (str name (first text))
+               (subs text 1))
+        [name text]))
     ["" input]))
 
 
@@ -56,12 +56,12 @@
   Otherwise it returns empty name and the input string."
   [input]
   (if (re-matches (re-pattern #"[A-Z_]") (subs input 0 1))
-    (loop [name (-> input first str)
-           result (rest input)]
-      (if (re-matches (re-pattern #"[a-zA-Z0-9_]") (-> result first str))
-        (recur (str name (first result))
-               (rest result))
-        [name (reduce str result)]))
+    (loop [name (subs input 0 1)
+           text (subs input 1)]
+      (if (re-matches (re-pattern #"[a-zA-Z0-9_]") (subs text 0 1))
+        (recur (str name (first text))
+               (subs text 1))
+        [name text]))
 
     ["" input]))
 
@@ -74,8 +74,7 @@
   (loop [num ""
         res input]
     (let [sym (first res)]
-    (if (or (digit? sym)
-            (= \. sym))
+    (if (re-matches (re-pattern #"[0-9.]") (str sym))
       (recur (str num sym)
              (subs res 1))
       [num res]))))
@@ -107,22 +106,10 @@
                 (subs res 1)))))))
 
 
-(defn find-rule
-  [input]
-  (let [[atom next-input] (find-atom input)]
-    (if (= "" atom)
-      ["" input]
-      (let [[args result] (find-arguments next-input)]
-        (if (= "" args)
-          ["" input]
-          [(str atom args) result])))))
-
-
-
 (defn find-next
   [input]
   (let [[atom res] (find-atom input)]
-    (if atom [atom res])))
+    (if-not (= "" atom) [atom res])))
 
 
 
@@ -155,33 +142,38 @@
   (if-not (= \( (first input))
     [nil input]
     (loop [args []
-           result (subs input 1)]
+           text (subs input 1)]
       (cond
-       (empty? result)
-       (throw (Exception. "Illegal Arguments list!"))
 
-       (= \) (first result))
-       [(create args) (subs result 1)]
+       (= \, (first text))
+       (recur args (subs text 1))
+
+       (= \) (first text))
+       [(create-arguments args) (subs text 1)]
 
        :else
-       (let [[term new-result] (find-next result)]
-          (recur (conj args term) new-result))))))
+       (let [[term new-text] (find-next text)]
+          (recur (conj args term) new-text))))))
+
+(defn extract-next [text]
+  (let [[atom rest-text :as result] (extract-atom text)]
+    (if atom
+      result)))
 
 
-(defn parse-next
-  [input]
-  (let [[atom res] (extract-atom input)]
-    (if atom [atom res]
+(defn parse [input]
+  (loop [text input
+         ops []
+         obs []]
+    (cond
 
-      (let [[var res] (extract-variable input)]
-        (if var [var res]
+     (= "." text)
+     (peek obs)
 
-          (let [[num res] (extract-number input)]
-            (if num [num res])
-
-            (let [[args res] (extract-arguments input)]
-              (if args [args res]))))))))
-
-
-
-(parse-next "(pesho)")
+     :else
+     (let [[term rest-text] (extract-next text)]
+       (if term
+         (recur rest-text
+                ops
+                (conj obs term))
+         (throw (Exception. "Invalid input!")))))))

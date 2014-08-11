@@ -1,6 +1,6 @@
-  (ns logic.interpreter
-  (:use [logic.util]
-        [logic.term]))
+(ns logic.interpreter
+  (:require [logic.util :refer :all]
+            [logic.term :refer :all]))
 
 
 ; =================================================================================== ;
@@ -13,7 +13,8 @@
 ; #  The interpreter knows only the things that are included in the knowledge-base. # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-(def debug (atom {:trace false
+(def debug (atom {:exit false
+                  :trace false
                   :info false
                   :redo false
                   :watch {:query false
@@ -22,7 +23,8 @@
 
 (def knowledge-base
   (atom {
-         "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])}))
+         "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
+         "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])}))
 
 
 (defmulti prove #(-> %& first type))
