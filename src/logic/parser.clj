@@ -80,36 +80,13 @@
       [num res]))))
 
 
-(defn find-list
-  [input]
-  (if-not (= \[ (first input))
-    ["" input]
-    (loop [str-list "["
-           res (subs input 1)]
-      (let [sym (first res)]
-        (cond
-
-         (= \[ sym)
-         (let [[new-list new-input] (find-list res)]
-           (recur (str str-list new-list)
-                  new-input))
-
-         (= \] sym)
-         [(str str-list \]) (subs res 1)]
-
-         (or (= \( sym)
-             (= \( sym))
-         (throw (Exception. "A List can hold only Atoms, Strings, Numbers and Variables."))
-
-         :else
-         (recur (str str-list sym)
-                (subs res 1)))))))
-
-
 (defn find-next
   [input]
   (let [[atom res] (find-atom input)]
-    (if-not (= "" atom) [atom res])))
+    (if-not (= "" atom) [atom res]
+
+      (let [[var res] (find-variable input)]
+        (if-not (= "" var) [var res])))))
 
 
 
@@ -155,10 +132,14 @@
        (let [[term new-text] (find-next text)]
           (recur (conj args term) new-text))))))
 
+
 (defn extract-next [text]
   (let [[atom rest-text :as result] (extract-atom text)]
     (if atom
-      result)))
+      (let [[args final-text] (extract-arguments rest-text)]
+        (if args
+          [(->PrologFact atom args) final-text]
+          result)))))
 
 
 (defn parse [input]
@@ -172,8 +153,6 @@
 
      :else
      (let [[term rest-text] (extract-next text)]
-       (if term
-         (recur rest-text
-                ops
-                (conj obs term))
-         (throw (Exception. "Invalid input!")))))))
+       (recur rest-text
+              ops
+              (conj obs term))))))

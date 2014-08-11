@@ -24,7 +24,11 @@
 (def knowledge-base
   (atom {
          "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
-         "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])}))
+         "notrace" (create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])
+         "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])
+         "member" [(create [:fact "member" ["A" ["A" "|" "_"]]])
+                   (create [:rule "member" ["A" ["_" "|" "X"]]
+                            [:fact "member" ["A" "X"]]])]}))
 
 
 (defmulti prove #(-> %& first type))
@@ -55,15 +59,14 @@
                       main-pool main-pool)]
 
     (if (empty? not-nil)
-      (print-green "true ")
+      (print-green "true")
       (loop [vars not-nil]
         (when-not (empty? vars)
           (let [out (print-var (first vars) work-pool)]
             (when-not (= "" out)
               (print-blue out)
-              (print " ")
               (when (next vars)
-                (println ",")))
+                (println " ,")))
             (recur (rest vars))))))))
 
 
@@ -358,13 +361,16 @@
            index 0]
       (let [[answer new-pool new-stack] (interpret query pool stack 1 index)]
         (if (false? answer)
-          (println-red "false.")
+          (println-red "false.\n")
           (do
             (print-answer main-pool new-pool)
             (flush)
             (if (empty? new-stack)
-              (println ".")
-              (when (= ";" (read-line))
-                (let [[old-query old-pool old-index] (peek new-stack)]
-                  (swap! debug assoc :redo true)
-                  (recur old-query old-pool (pop new-stack) old-index))))))))))
+              (println ".\n")
+              (do
+                (print " ")
+                (flush)
+                (when (= ";" (read-line))
+                  (let [[old-query old-pool old-index] (peek new-stack)]
+                    (swap! debug assoc :redo true)
+                  (recur old-query old-pool (pop new-stack) old-index)))))))))))

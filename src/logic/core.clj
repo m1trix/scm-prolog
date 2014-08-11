@@ -13,7 +13,7 @@
 
   (loop []
     (when (:trace @debug)
-      (print "[T]" ))
+      (print "[T] " ))
     (print "?- ")
     (print "\u001b[33m")
     (flush)
