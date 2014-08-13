@@ -9,9 +9,10 @@
   (:refer-clojure :exclude [resolve]))
 
 
-(def priority-table
+(def priority
   {\, 2
-   \; 1})
+   \; 1
+   \( 0})
 
 
 (defn remove-spaces [input]
@@ -110,7 +111,7 @@
 
           (let [[num res] (find-number input)]
             (if-not (= "" num) [(read-string num) res]
-              (throw (Exception. (str "Missing operator before: \"" input "\"."))))))))))
+              (throw (Exception. (str "Missing operator before: \"" (-> input (subs 1) find-next first) "\"."))))))))))
 
 
 
@@ -188,10 +189,33 @@
           result)))))
 
 
-(defn build [operations objects sign]
+(defn execute [op obs]
+  (cond
+
+   (= \, op) (conj (-> obs pop pop)
+                   (->PrologConjunction [(-> obs pop peek) (peek obs)]))
+
+   (= \; op) (conj (-> obs pop pop)
+                   (->PrologDisjunction [(-> obs pop peek) (peek obs)]))))
+
+
+(defn add-operation
+  [operations objects sign]
   (loop [ops operations
          obs objects]
-    ))
+    (cond
+
+     (empty? ops)
+     [(conj ops sign) obs]
+
+     (<= (priority sign)
+         (-> ops peek priority))
+     (recur (pop ops)
+            (execute (peek ops)
+                     obs))
+
+     :else
+     [(conj ops sign) obs])))
 
 
 (defn parse [input]
@@ -200,22 +224,30 @@
          obs []]
     (cond
 
-     (= "." text)
-     (if (next obs)
-       (throw (Exception. (str "Missing operator before: " (-> obs last (output {})) ".")))
-       (peek obs))
+     (= \. (first text))
+     (if (next text)
+       (throw (Exception. (str "Missing operator before: \"" (-> obs last (output {})) "\".")))
+       (loop [inner-ops ops
+              inner-obs obs]
+         (if (empty? inner-ops)
+           inner-obs
+;;            (if (next inner-obs)
+;;              (throw (Exception. (str "Missing operator before: \"" (-> inner-obs peek (output {})) "\".")))
+;;              (peek inner-obs))
+           (recur (pop inner-ops) (execute (last inner-ops) obs)))))
+           ;;inner-ops)))
 
      (= \space (first text))
-     (throw (Exception. (str "Missing operator before: \"" text "\".")))
+     (throw (Exception. (str "Missing operator before: \"" (-> text (subs 1) find-next first) "\".")))
 
-     (= \, (first text))
-     (if (= \, (peek ops))
-       (recur (subs text 1) (conj ops \,) obs)
-       (let [[new-ops new-obs] (build ops obs \,)]
-         (recur (subs text 1) new-ops new-obs)))
+     (or (= \, (first text))
+         (= \; (first text)))
+     (let [[new-ops new-obs] (add-operation ops obs (first text))]
+       (recur (subs text 1) new-ops new-obs))
 
      :else
      (let [[term rest-text] (extract-next text)]
-       (recur rest-text
-              ops
-              (conj obs term))))))
+       (recur rest-text ops (conj obs term))))))
+
+
+(parse "kiro; gosho, miro.")

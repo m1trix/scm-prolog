@@ -380,4 +380,5 @@
                 (when (= ";" (read-line))
                   (let [[old-query old-pool old-index] (peek new-stack)]
                     (swap! debug assoc :redo true)
-                  (recur old-query old-pool (pop new-stack) old-index)))))))))))
+                  (recur old-query old-pool (pop new-stack) old-index))))))))))
+  (swap! debug assoc :redo false))
