@@ -73,7 +73,7 @@
 (defn print-blue
   "Prints a string with a blue color."
   [s]
-  (print (str "\u001b[36m" s "\u001b[0m")))
+  (print (str "\u001b[1;34m" s "\u001b[0m")))
 
 
 (defn print-green

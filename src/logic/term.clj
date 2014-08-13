@@ -1,6 +1,7 @@
 (ns logic.term
-  [:require [logic.util :refer :all]
-            [clojure.set]])
+  (:use [logic.util])
+  (:require [clojure.set])
+  (:refer-clojure :exclude [resolve]))
 
 
 (defmulti output (fn [term _] (type term)))

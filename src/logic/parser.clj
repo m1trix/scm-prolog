@@ -5,7 +5,13 @@
 ;;  that it describes.
 ;;
 (ns logic.parser
-  [:require [logic.term :refer :all]])
+  (:use [logic.term])
+  (:refer-clojure :exclude [resolve]))
+
+
+(def priority-table
+  {\, 2
+   \; 1})
 
 
 (defn remove-spaces [input]
@@ -182,6 +188,12 @@
           result)))))
 
 
+(defn build [operations objects sign]
+  (loop [ops operations
+         obs objects]
+    ))
+
+
 (defn parse [input]
   (loop [text (remove-spaces input)
          ops []
@@ -189,10 +201,18 @@
     (cond
 
      (= "." text)
-     (peek obs)
+     (if (next obs)
+       (throw (Exception. (str "Missing operator before: " (-> obs last (output {})) ".")))
+       (peek obs))
 
      (= \space (first text))
-     (recur (subs text 1) ops obs)
+     (throw (Exception. (str "Missing operator before: \"" text "\".")))
+
+     (= \, (first text))
+     (if (= \, (peek ops))
+       (recur (subs text 1) (conj ops \,) obs)
+       (let [[new-ops new-obs] (build ops obs \,)]
+         (recur (subs text 1) new-ops new-obs)))
 
      :else
      (let [[term rest-text] (extract-next text)]

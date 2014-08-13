@@ -1,6 +1,7 @@
 (ns logic.interpreter
-  (:require [logic.util :refer :all]
-            [logic.term :refer :all]))
+  (:use [logic.util]
+        [logic.term])
+  (:refer-clojure :exclude [resolve replace]))
 
 
 ; =================================================================================== ;
@@ -26,6 +27,12 @@
          "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
          "notrace" (create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])
          "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])
+
+         "insert" [(create [:fact "insert" ["A" [] ["A"]]])
+                   (create [:fact "insert" ["A" "B" ["A" "|" "B"]]])
+                   (create [:rule "insert" ["Element" ["Head" "|" "Rest"] ["Head" "|" "NewList"]]
+                            [:fact "insert" ["Element" "Rest" "NewList"]]])]
+
          "member" [(create [:fact "member" ["A" ["A" "|" "_"]]])
                    (create [:rule "member" ["A" ["_" "|" "X"]]
                             [:fact "member" ["A" "X"]]])]}))
@@ -352,7 +359,7 @@
 
 (defn ?-
   "Proves the query and prints the answer. If there are more than one
-  solutions, it waits for the user to stop it or continue it."
+  solutions, it waits for forse backtracking."
   [input]
   (let [main-pool (get-vars input)]
     (loop [query input

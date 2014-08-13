@@ -1,7 +1,8 @@
 (ns logic.core
-  (:require [logic.interpreter :refer :all]
-            [logic.parser :refer :all]
-            [logic.util :refer :all]))
+  (:use [logic.interpreter]
+        [logic.parser]
+        [logic.util])
+  (:refer-clojure :exclude [resolve replace]))
 
 
 
