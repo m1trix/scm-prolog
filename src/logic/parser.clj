@@ -219,9 +219,17 @@
 
 
 (defn parse [input]
+  (println "Parsing:" (remove-spaces input))
   (loop [text (remove-spaces input)
          ops []
          obs []]
+
+;;    DEBUG:
+;;     (print ops " ")
+;;     (print "[ ")
+;;     (doseq [x obs] (print (output x {}) ""))
+;;     (println "]")
+
     (cond
 
      (= \. (first text))
@@ -230,12 +238,10 @@
        (loop [inner-ops ops
               inner-obs obs]
          (if (empty? inner-ops)
-           inner-obs
-;;            (if (next inner-obs)
-;;              (throw (Exception. (str "Missing operator before: \"" (-> inner-obs peek (output {})) "\".")))
-;;              (peek inner-obs))
-           (recur (pop inner-ops) (execute (last inner-ops) obs)))))
-           ;;inner-ops)))
+           (if (next inner-obs)
+             (throw (Exception. (str "Missing operator before: \"" (-> inner-obs last (output {})) "\".")))
+             (first inner-obs))
+           (recur (pop inner-ops) (execute (peek inner-ops) inner-obs)))))
 
      (= \space (first text))
      (throw (Exception. (str "Missing operator before: \"" (-> text (subs 1) find-next first) "\".")))
@@ -250,4 +256,4 @@
        (recur rest-text ops (conj obs term))))))
 
 
-(parse "kiro; gosho, miro.")
+(-> "kiro; gosho,miro;petko." parse (output {}))
