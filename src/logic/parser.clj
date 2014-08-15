@@ -10,12 +10,10 @@
 
 
 (def priority
-  ;; The point beats all.
-  {\, 3
-   \; 2
-   ":-" 1
-   \( 0
-   \. 0})
+  {
+   ":-"    1200
+   \;      1100
+   \,      1000})
 
 
 (defn remove-spaces [input]
@@ -208,7 +206,10 @@
       (let [[args fact-text] (extract-arguments atom-text)]
         (if args
           [(->PrologFact atom args) fact-text]
-          result)))))
+          result))
+
+      (let [[term term-text] (find-next text)]
+        [(create term) term-text]))))
 
 
 (defn execute [op obs]
@@ -220,6 +221,17 @@
      (= \, (:sign op)) (conj rest-obs (->PrologConjunction terms))
 
      (= \; (:sign op)) (conj rest-obs (->PrologDisjunction terms))
+
+     (= \+ (:sign op)) (conj rest-obs (->PrologExpression "+" (first terms) (second terms)))
+
+     (= \- (:sign op)) (conj rest-obs (->PrologExpression "-" (first terms) (second terms)))
+
+     (= \* (:sign op)) (conj rest-obs (->PrologExpression "*" (first terms) (second terms)))
+
+     (= \\ (:sign op)) (conj rest-obs (->PrologExpression "\\" (first terms) (second terms)))
+
+     (= \= (:sign op)) (conj rest-obs (->PrologExpression "=" (first terms) (second terms)))
+     (= "is" (:sign op)) (conj rest-obs (->PrologExpression "is" (first terms) (second terms)))
 
      (= ":-" (:sign op)) (conj rest-obs (->PrologRule (first terms) (second terms))))))
 
@@ -247,7 +259,7 @@
      (and (= \; sign) (-> ops peek :sign (= \;)))
      [(conj (pop ops) (assoc (peek ops) :arity (-> ops peek :arity inc))) obs]
 
-     (<= (priority sign)
+     (>= (priority sign)
          (-> ops peek :sign priority))
      (recur (pop ops)
             (execute (peek ops)
@@ -263,7 +275,7 @@
          obs []
          result []]
 
-;;    DEBUG:
+;;   DEBUG:
 ;;     (print ops " ")
 ;;     (print "[ ")
 ;;     (doseq [x obs] (print (output x {}) ""))
@@ -278,9 +290,9 @@
        (throw (Exception. "Missing '.'")))
 
      (= \space (first text))
-     (throw (Exception. (str "Missing operator before: \"" (-> text (subs 1) find-next first) "\".")))
+     (recur (subs text 1) ops obs result)
 
-     (#{\, \; \. \( \)} (first text))
+     (#{\, \; \. \( \) \+ \- \\ \* \=} (first text))
      (let [[new-ops new-obs]
            (add-operation ops obs (first text))]
        (if (= \. (first text))
@@ -289,10 +301,13 @@
            (recur (subs text 1) [] [] (conj result (first new-obs))))
        (recur (subs text 1) new-ops new-obs result)))
 
-     (or (= ":-" (subs text 0 2)))
+     (#{":-" "is"} (subs text 0 2))
      (let [[new-ops new-obs] (add-operation ops obs (subs text 0 2))]
        (recur (subs text 2) new-ops new-obs result))
 
      :else
      (let [[term rest-text] (extract-next text)]
        (recur rest-text ops (conj obs term) result)))))
+
+
+(->> "(X is 22+10+2)." parse (mapv #(output % {})))
