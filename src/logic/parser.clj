@@ -11,11 +11,11 @@
 
 (def priority
   ;; The point beats all.
-  {\. 0
-   \, 3
+  {\, 3
    \; 2
    ":-" 1
-   \( 0})
+   \( 0
+   \. 0})
 
 
 (defn remove-spaces [input]
@@ -217,11 +217,11 @@
         rest-obs (subvec obs 0 index)]
     (cond
 
-   (= \, (:sign op)) (conj rest-obs (->PrologConjunction terms))
+     (= \, (:sign op)) (conj rest-obs (->PrologConjunction terms))
 
-   (= \; (:sign op)) (conj rest-obs (->PrologDisjunction terms))
+     (= \; (:sign op)) (conj rest-obs (->PrologDisjunction terms))
 
-   (= ":-" (:sign op)) (conj rest-obs (->PrologRule (first terms) (second terms))))))
+     (= ":-" (:sign op)) (conj rest-obs (->PrologRule (first terms) (second terms))))))
 
 
 (defn add-operation
@@ -232,6 +232,14 @@
 
      (empty? ops)
      [(conj ops {:sign sign :arity 2}) obs]
+
+     (= \( sign)
+     [(conj ops {:sign sign :arity 0}) obs]
+
+     (= \) sign)
+     (if (= \( (-> ops peek :sign))
+       [(pop ops) obs]
+       (recur (pop ops) (execute (peek ops) obs)))
 
      (and (= \, sign) (-> ops peek :sign (= \,)))
      [(conj (pop ops) (assoc (peek ops) :arity (-> ops peek :arity inc))) obs]
@@ -269,27 +277,15 @@
        result
        (throw (Exception. "Missing '.'")))
 
-;;      (= \. (first text))
-;;      (let [new-term
-;;            (loop [inner-ops ops
-;;                   inner-obs obs]
-;;              (if (empty? inner-ops)
-;;                (if (next inner-obs)
-;;                  (throw (Exception. (str "Missing operator before: \"" (-> inner-obs last (output {})) "\".")))
-;;                  (first inner-obs))
-;;                (recur (pop inner-ops) (execute (peek inner-ops) inner-obs))))]
-;;        (recur (subs text 1) [] [] (conj result new-term)))
-
      (= \space (first text))
      (throw (Exception. (str "Missing operator before: \"" (-> text (subs 1) find-next first) "\".")))
 
-     (or (= \, (first text))
-         (= \; (first text))
-         (= \. (first text)))
-     (let [[new-ops new-obs] (add-operation ops obs (first text))]
+     (#{\, \; \. \( \)} (first text))
+     (let [[new-ops new-obs]
+           (add-operation ops obs (first text))]
        (if (= \. (first text))
          (if (next new-obs)
-           (throw (Exception. (str "Missing operator before: \"" (-> new-obs last (output {})) "\".")))
+           (throw (Exception. (str "Missing operator before: \"" (-> new-obs peek (output {})) "\".")))
            (recur (subs text 1) [] [] (conj result (first new-obs))))
        (recur (subs text 1) new-ops new-obs result)))
 
