@@ -10,8 +10,9 @@
 
 
 (def priority
-  {\, 2
-   \; 1
+  {\, 3
+   \; 2
+   ":-" 1
    \( 0})
 
 
@@ -200,11 +201,11 @@
 
 
 (defn extract-next [text]
-  (let [[atom rest-text :as result] (extract-atom text)]
+  (let [[atom atom-text :as result] (extract-atom text)]
     (if atom
-      (let [[args final-text] (extract-arguments rest-text)]
+      (let [[args fact-text] (extract-arguments atom-text)]
         (if args
-          [(->PrologFact atom args) final-text]
+          [(->PrologFact atom args) fact-text]
           result)))))
 
 
@@ -215,7 +216,10 @@
                    (->PrologConjunction [(-> obs pop peek) (peek obs)]))
 
    (= \; op) (conj (-> obs pop pop)
-                   (->PrologDisjunction [(-> obs pop peek) (peek obs)]))))
+                   (->PrologDisjunction [(-> obs pop peek) (peek obs)]))
+
+   (= ":-" op) (conj (-> obs pop pop)
+                     (->PrologRule (-> obs pop peek) (peek obs)))))
 
 
 (defn add-operation
@@ -238,7 +242,6 @@
 
 
 (defn parse [input]
-  (println "Parsing:" (remove-spaces input))
   (loop [text (remove-spaces input)
          ops []
          obs []]
@@ -269,6 +272,10 @@
          (= \; (first text)))
      (let [[new-ops new-obs] (add-operation ops obs (first text))]
        (recur (subs text 1) new-ops new-obs))
+
+     (or (= ":-" (subs text 0 2)))
+     (let [[new-ops new-obs] (add-operation ops obs (subs text 0 2))]
+       (recur (subs text 2) new-ops new-obs))
 
      :else
      (let [[term rest-text] (extract-next text)]
