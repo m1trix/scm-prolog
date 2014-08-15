@@ -10,7 +10,9 @@
 
 
 (def priority
-  {\, 3
+  ;; The point beats all.
+  {\. 100
+   \, 3
    \; 2
    ":-" 1
    \( 0})
@@ -250,7 +252,8 @@
 (defn parse [input]
   (loop [text (remove-spaces input)
          ops []
-         obs []]
+         obs []
+         result []]
 
 ;;    DEBUG:
 ;;     (print ops " ")
@@ -260,31 +263,40 @@
 
     (cond
 
-     (= \. (first text))
-     (if (next text)
-       (throw (Exception. (str "Missing operator before: \"" (-> obs last (output {})) "\".")))
-       (loop [inner-ops ops
-              inner-obs obs]
-         (if (empty? inner-ops)
-           (if (next inner-obs)
-             (throw (Exception. (str "Missing operator before: \"" (-> inner-obs last (output {})) "\".")))
-             (first inner-obs))
-           (recur (pop inner-ops) (execute (peek inner-ops) inner-obs)))))
+     (or (empty? text)
+         (= \% (first text)))
+     (if (empty? obs)
+       result
+       (throw (Exception. "Missing '.'")))
+
+;;      (= \. (first text))
+;;      (let [new-term
+;;            (loop [inner-ops ops
+;;                   inner-obs obs]
+;;              (if (empty? inner-ops)
+;;                (if (next inner-obs)
+;;                  (throw (Exception. (str "Missing operator before: \"" (-> inner-obs last (output {})) "\".")))
+;;                  (first inner-obs))
+;;                (recur (pop inner-ops) (execute (peek inner-ops) inner-obs))))]
+;;        (recur (subs text 1) [] [] (conj result new-term)))
 
      (= \space (first text))
      (throw (Exception. (str "Missing operator before: \"" (-> text (subs 1) find-next first) "\".")))
 
      (or (= \, (first text))
-         (= \; (first text)))
+         (= \; (first text))
+         (= \. (first text)))
      (let [[new-ops new-obs] (add-operation ops obs (first text))]
-       (recur (subs text 1) new-ops new-obs))
+       (if (= \. (first text))
+         (if (next obs)
+           (throw (Exception. (str "Missing operator before: \"" (-> obs last (output {})) "\".")))
+           (recur (subs text 1) [] [] (conj result (first obs))))
+       (recur (subs text 1) new-ops new-obs result)))
 
      (or (= ":-" (subs text 0 2)))
      (let [[new-ops new-obs] (add-operation ops obs (subs text 0 2))]
-       (recur (subs text 2) new-ops new-obs))
+       (recur (subs text 2) new-ops new-obs result))
 
      :else
      (let [[term rest-text] (extract-next text)]
-       (recur rest-text ops (conj obs term))))))
-
-(-> "atom(pesho, pesho)." parse)
+       (recur rest-text ops (conj obs term) result)))))

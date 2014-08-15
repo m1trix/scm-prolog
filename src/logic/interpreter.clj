@@ -25,8 +25,7 @@
 
 
 (def knowledge-base
-  (atom {
-         "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
+  (atom {"trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
          "notrace" (create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])
          "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])}))
 
@@ -34,16 +33,17 @@
 (defn compile-file [[s]]
   (with-open [rdr (reader (clojure.string/replace (:string s) #"\"" ""))]
     (doseq [line (line-seq rdr)]
-      (let [term (parse line)
-            name (get-name term)
-            all (@knowledge-base name)]
-        (cond
+      (let [terms (parse line)]
+        (doseq [term terms]
+          (let [name (get-name term)
+                all (@knowledge-base name)]
+            (cond
 
-         (nil? all)
-         (swap! knowledge-base assoc name [term])
+             (nil? all)
+             (swap! knowledge-base assoc name [term])
 
-         :else
-         (swap! knowledge-base assoc name (conj all term)))))))
+             :else
+             (swap! knowledge-base assoc name (conj all term)))))))))
 
 
 (swap! knowledge-base assoc "compile" [(create [:form "compile" ["Filepath"] compile-file])])

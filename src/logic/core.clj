@@ -21,7 +21,9 @@
     (let [input (read-line)]
       (print "\u001b[0m")
       (try
-        (?- (parse input))
+        (let [terms (parse input)]
+          (doseq [term terms]
+            (?- term)))
         (catch Exception e
           (println-red (str "ERROR: "(.getMessage e)))))
       (when (false? (:exit @debug))
