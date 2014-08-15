@@ -11,7 +11,7 @@
 
 (def priority
   ;; The point beats all.
-  {\. 100
+  {\. 0
    \, 3
    \; 2
    ":-" 1
@@ -288,9 +288,9 @@
          (= \. (first text)))
      (let [[new-ops new-obs] (add-operation ops obs (first text))]
        (if (= \. (first text))
-         (if (next obs)
-           (throw (Exception. (str "Missing operator before: \"" (-> obs last (output {})) "\".")))
-           (recur (subs text 1) [] [] (conj result (first obs))))
+         (if (next new-obs)
+           (throw (Exception. (str "Missing operator before: \"" (-> new-obs last (output {})) "\".")))
+           (recur (subs text 1) [] [] (conj result (first new-obs))))
        (recur (subs text 1) new-ops new-obs result)))
 
      (or (= ":-" (subs text 0 2)))
