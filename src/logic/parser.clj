@@ -210,16 +210,16 @@
 
 
 (defn execute [op obs]
-  (cond
+  (let [index (- (count obs) (:arity op))
+        terms (subvec obs index)
+        rest-obs (subvec obs 0 index)]
+    (cond
 
-   (= \, op) (conj (-> obs pop pop)
-                   (->PrologConjunction [(-> obs pop peek) (peek obs)]))
+   (= \, (:sign op)) (conj rest-obs (->PrologConjunction terms))
 
-   (= \; op) (conj (-> obs pop pop)
-                   (->PrologDisjunction [(-> obs pop peek) (peek obs)]))
+   (= \; (:sign op)) (conj rest-obs (->PrologDisjunction terms))
 
-   (= ":-" op) (conj (-> obs pop pop)
-                     (->PrologRule (-> obs pop peek) (peek obs)))))
+   (= ":-" (:sign op)) (conj rest-obs (->PrologRule (first terms) (second terms))))))
 
 
 (defn add-operation
@@ -229,16 +229,22 @@
     (cond
 
      (empty? ops)
-     [(conj ops sign) obs]
+     [(conj ops {:sign sign :arity 2}) obs]
+
+     (and (= \, sign) (-> ops peek :sign (= \,)))
+     [(conj (pop ops) (assoc (peek ops) :arity (-> ops peek :arity inc))) obs]
+
+     (and (= \; sign) (-> ops peek :sign (= \;)))
+     [(conj (pop ops) (assoc (peek ops) :arity (-> ops peek :arity inc))) obs]
 
      (<= (priority sign)
-         (-> ops peek priority))
+         (-> ops peek :sign priority))
      (recur (pop ops)
             (execute (peek ops)
                      obs))
 
      :else
-     [(conj ops sign) obs])))
+     [(conj ops {:sign sign :arity 2}) obs])))
 
 
 (defn parse [input]
@@ -280,3 +286,5 @@
      :else
      (let [[term rest-text] (extract-next text)]
        (recur rest-text ops (conj obs term))))))
+
+(-> "atom(pesho, pesho)." parse)
