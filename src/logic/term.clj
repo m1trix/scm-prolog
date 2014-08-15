@@ -11,6 +11,7 @@
 (defmulti reshape (fn [term _] (type term)))
 (defmulti create (fn [inp & rest] (type inp)))
 (defmulti resolve (fn [x y _] [(type x) (type y)]))
+(defmulti get-name (fn [term] (type term)))
 
 
 (defmethod unify :default
@@ -613,6 +614,10 @@
   (PrologFact. (create atom)
                (create-arguments args)))
 
+(defmethod get-name PrologFact
+  [fact]
+  (-> fact :atom :name))
+
 
 (defmethod unify [PrologFact PrologFact]
   [fact-x fact-y pool]
@@ -898,9 +903,19 @@
   (if (and (= 0 (-> form :fact :args :args count))
            (unify atom (-> form :fact :atom) pool))
     (do
-      ((:func form) (:args form))
+      ((:func form) (-> form :fact :args))
       [true true pool])
     [false false pool]))
+
+
+(defmethod resolve [PrologFact PrologFormula]
+  [fact form pool]
+  (let [[status new-fact new-pool] (resolve fact (:fact form) pool)]
+    (if (true? status)
+      (do
+        ((:func form) (-> new-fact :args :args))
+        [true true pool])
+      [false false pool])))
 
 
 ; =================================================================================== ;
@@ -926,6 +941,11 @@
   (let [new-head (create-fact [name args])
         new-body (create body)]
     (PrologRule. new-head new-body)))
+
+
+(defmethod get-name PrologRule
+  [rule]
+  (-> rule :head :atom :name))
 
 
 (defmethod generate PrologRule

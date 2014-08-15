@@ -1,6 +1,8 @@
 (ns logic.interpreter
   (:use [logic.util]
-        [logic.term])
+        [logic.term]
+        [clojure.java.io]
+        [logic.parser])
   (:refer-clojure :exclude [resolve replace]))
 
 
@@ -26,16 +28,29 @@
   (atom {
          "trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
          "notrace" (create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])
-         "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])
+         "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])}))
 
-         "insert" [(create [:fact "insert" ["A" [] ["A"]]])
-                   (create [:fact "insert" ["A" "B" ["A" "|" "B"]]])
-                   (create [:rule "insert" ["Element" ["Head" "|" "Rest"] ["Head" "|" "NewList"]]
-                            [:fact "insert" ["Element" "Rest" "NewList"]]])]
 
-         "member" [(create [:fact "member" ["A" ["A" "|" "_"]]])
-                   (create [:rule "member" ["A" ["_" "|" "X"]]
-                            [:fact "member" ["A" "X"]]])]}))
+(defn compile-file [[s]]
+  (with-open [rdr (reader (clojure.string/replace (:string s) #"\"" ""))]
+    (doseq [line (line-seq rdr)]
+      (let [term (parse line)
+            name (get-name term)
+            all (@knowledge-base name)]
+        (cond
+
+         (nil? all)
+         (swap! knowledge-base assoc name [term])
+
+         :else
+         (swap! knowledge-base assoc name (conj all term)))))))
+
+
+(swap! knowledge-base assoc "compile" [(create [:form "compile" ["Filepath"] compile-file])])
+
+
+; =================================================================================== ;
+; =================================================================================== ;
 
 
 (defmulti prove #(-> %& first type))

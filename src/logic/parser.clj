@@ -71,6 +71,22 @@
       [single-word result])))
 
 
+(defn find-string
+  "If a string starts with a inline string
+  the function returns that string and the rest of the input.
+  Otherwise it returns empty string and the same input."
+  [input]
+  (if (= \" (first input))
+    (loop [s ""
+           res (subs input 1)]
+      (if (= \" (first res))
+        [(str \" s \")
+         (subs res 1)]
+        (recur (str s (first res))
+               (subs res 1))))
+    ["" input]))
+
+
 (defn find-variable
   "If a string starts with a single word Variable name
   the function returns the name and the rest of the string.
@@ -111,7 +127,10 @@
 
           (let [[num res] (find-number input)]
             (if-not (= "" num) [(read-string num) res]
-              (throw (Exception. (str "Missing operator before: \"" (-> input (subs 1) find-next first) "\"."))))))))))
+
+              (let [[s res] (find-string input)]
+                (if-not (= "" s) [s res]
+                  (throw (Exception. (str "Missing operator before: \"" (-> input (subs 1) find-next first) "\"."))))))))))))
 
 
 
@@ -254,6 +273,3 @@
      :else
      (let [[term rest-text] (extract-next text)]
        (recur rest-text ops (conj obs term))))))
-
-
-(-> "kiro; gosho,miro;petko." parse (output {}))
