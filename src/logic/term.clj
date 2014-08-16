@@ -819,62 +819,6 @@
 
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 ; #                                                                                 # ;
-; #  Prolog Expression: 2 + 2, X is 3 * 8.                                          # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #                                          is                                     # ;
-; #                                         /  \                                    # ;
-; #  Actualy, they look like this:  +   ,  X    *                                   # ;
-; #                                / \         / \                                  # ;
-; #                               2   2       3   5                                 # ;
-; #                                                                                 # ;
-; #  They are secial type of Prolog Facts.                                          # ;
-; #  They have exactly two arguments and are used only for mathematical expressions.# ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-(defrecord PrologExpression [name left right])
-
-
-(defn create-expression [[left name right]]
-  (PrologExpression. name (create left) (create right)))
-
-
-(defmethod generate PrologExpression
-  [expr names]
-  (let [[new-left names-left]
-        (generate (:left expr) names)
-
-        [new-right new-names]
-        (generate (:right expr) names-left)]
-
-    [(PrologExpression. (:name expr) new-left new-right)
-     new-names]))
-
-
-(defmethod get-vars PrologExpression
-  [expr]
-  (clojure.set/union
-   (get-vars (:left expr))
-   (get-vars (:right expr))))
-
-
-(defmethod output PrologExpression
-  [expr pool]
-  (str "("
-       (output (:left expr) pool)
-       " "
-       (:name expr)
-       " "
-       (output (:right expr) pool)
-       ")"))
-
-
-; =================================================================================== ;
-; =================================================================================== ;
-
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
 ; #  Prolog Formula: random(Base, Max, Number).                                     # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
@@ -1030,9 +974,6 @@
 
    (= key :not)
    (create-negation rest)
-
-   (= key :expr)
-   (create-expression rest)
 
    (= key :form)
    (create-formula rest)
