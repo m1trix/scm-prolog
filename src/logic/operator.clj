@@ -20,7 +20,10 @@
 
 
 (def built-in-unary {})
-(def built-in-binary {})
+(def built-in-binary
+  {":-" (create-operator 1200 "xfx" ":-"
+   "," (create-operator 1000 "xfy" ",")
+   ";" (create-operator 1100 "xfy" ";")})
 
 
 (def operators-binary (atom built-in-unary))
@@ -44,3 +47,6 @@
     false
     true))
 
+
+(defn make-fact [op args]
+  (->PrologFact (-> op :name ->PrologAtom) (->PrologArguments args)))

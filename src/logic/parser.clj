@@ -9,13 +9,6 @@
   (:refer-clojure :exclude [resolve]))
 
 
-(def priority
-  {
-   ":-"    1200
-   \;      1100
-   \,      1000})
-
-
 (defn remove-spaces [input]
   (->> input
        (re-seq (re-pattern #"\"[^\"]*\"|\'[^\']*\'|[^'\"]+"))
@@ -212,6 +205,18 @@
         [(create term) term-text]))))
 
 
+(defn find-operator [input]
+  (loop [name ""
+         text input]
+    (cond
+
+     (= \space (first text))
+     [name text]
+
+     (= \( (first text))
+     ["" input])))
+
+
 (defn execute [op obs]
   (let [index (- (count obs) (:arity op))
         terms (subvec obs index)
@@ -281,19 +286,9 @@
      (= \space (first text))
      (recur (subs text 1) ops obs result)
 
-     (#{\, \; \. \( \) \+ \- \\ \* \=} (first text))
-     (let [[new-ops new-obs]
-           (add-operation ops obs (first text))]
-       (if (= \. (first text))
-         (if (next new-obs)
-           (throw (Exception. (str "Missing operator before: \"" (-> new-obs peek (output {})) "\".")))
-           (recur (subs text 1) [] [] (conj result (first new-obs))))
-       (recur (subs text 1) new-ops new-obs result)))
-
-     (#{":-" "is"} (subs text 0 2))
-     (let [[new-ops new-obs] (add-operation ops obs (subs text 0 2))]
-       (recur (subs text 2) new-ops new-obs result))
-
      :else
-     (let [[term rest-text] (extract-next text)]
-       (recur rest-text ops (conj obs term) result)))))
+     (let [[name rest-text] (find-operator text)]
+       (if (= "" name)
+         (let [[term rest-text] (extract-next text)]
+           (recur rest-text ops (conj obs term) result))
+         ())))))
