@@ -66,32 +66,42 @@
 
 (defn print-red
   "Prints the error message in a specific text format"
-  [err-msg]
-  (print (str "\u001b[1;31m" err-msg "\u001b[0m")))
+  [s]
+  (if (= "Linux" (System/getProperty "os.name"))
+    (print (str "\u001b[1;31m" s "\u001b[0m"))
+    (print s)))
 
 
 (defn print-blue
   "Prints a string with a blue color."
   [s]
-  (print (str "\u001b[1;34m" s "\u001b[0m")))
+  (if (= "Linux" (System/getProperty "os.name"))
+    (print (str "\u001b[1;34m" s "\u001b[0m"))
+    (print s)))
 
 
 (defn print-green
   "Prints a string with a green color."
   [s]
-  (print (str "\u001b[1;32m" s "\u001b[0m")))
+  (if (= "Linux" (System/getProperty "os.name"))
+    (print (str "\u001b[1;32m" s "\u001b[0m"))
+    (print s)))
 
 
 (defn print-yellow
   "Prints a string with a yellow color."
   [s]
-  (print (str "\u001b[1;33m" s "\u001b[0m")))
+  (if (= "Linux" (System/getProperty "os.name"))
+    (print (str "\u001b[1;33m" s "\u001b[0m"))
+    (print s)))
 
 
 (defn print-gray
   "Prints a string with a gray color."
   [s]
-  (print (str "\u001b[38;5;247m" s "\u001b[0m")))
+  (if (= "Linux" (System/getProperty "os.name"))
+    (print (str "\u001b[38;5;247m" s "\u001b[0m"))
+    (print s)))
 
 
 

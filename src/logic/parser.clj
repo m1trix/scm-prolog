@@ -222,17 +222,6 @@
 
      (= \; (:sign op)) (conj rest-obs (->PrologDisjunction terms))
 
-     (= \+ (:sign op)) (conj rest-obs (->PrologExpression "+" (first terms) (second terms)))
-
-     (= \- (:sign op)) (conj rest-obs (->PrologExpression "-" (first terms) (second terms)))
-
-     (= \* (:sign op)) (conj rest-obs (->PrologExpression "*" (first terms) (second terms)))
-
-     (= \\ (:sign op)) (conj rest-obs (->PrologExpression "\\" (first terms) (second terms)))
-
-     (= \= (:sign op)) (conj rest-obs (->PrologExpression "=" (first terms) (second terms)))
-     (= "is" (:sign op)) (conj rest-obs (->PrologExpression "is" (first terms) (second terms)))
-
      (= ":-" (:sign op)) (conj rest-obs (->PrologRule (first terms) (second terms))))))
 
 
@@ -308,6 +297,3 @@
      :else
      (let [[term rest-text] (extract-next text)]
        (recur rest-text ops (conj obs term) result)))))
-
-
-(->> "(X is 22+10+2)." parse (mapv #(output % {})))

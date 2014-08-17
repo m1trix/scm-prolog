@@ -1,91 +1,46 @@
-(ns logic.math
-  [:use [logic.term]
-        [logic.util]])
+(ns logic.operator
+  (:use [logic.term])
+  (:refer-clojure :exclude [resolve]))
 
 
-(defn math-add [[num-x num-y] pool]
-  (if (and (prolog-number? num-x)
-           (prolog-number? num-y))
-    [(>number< (+ (:value num-x)
-                  (:value num-y)))
-     pool]
-    (throw (Exception. "Operation + requires numbers as arguments!"))))
+(defrecord PrologOperator [prec name left right])
 
 
-(defn math-substract [[num-x num-y] pool]
-  (if (and (prolog-number? num-x)
-           (prolog-number? num-y))
-    [(>number< (- (:value num-x)
-                 (:value num-y)))
-     pool]
-    (throw (Exception. "Operation - requires numbers as arguments!"))))
-
-
-(defn math-multiply [[num-x num-y] pool]
-  (if (and (prolog-number? num-x)
-           (prolog-number? num-y))
-    [(>number< (* (:value num-x)
-                 (:value num-y)))
-     pool]
-    (throw (Exception. "Operation * requires numbers as arguments!"))))
-
-
-(defn math-divide [[num-x num-y] pool]
-  (if (and (prolog-number? num-x)
-           (prolog-number? num-y))
-    [(>number< (/ (:value num-x)
-                 (:value num-y)))
-     pool]
-    (throw (Exception. "Operation / requires numbers as arguments!"))))
-
-
-(defn math-method? [method]
-  (let [func (:func method)]
-    (if (or (same? func math-add)
-            (same? func math-substract)
-            (same? func math-multiply)
-            (same? func math-divide))
-      true
-      false)))
-
-
-(defn calculate [term pool]
-  (cond
-   (math-method? term)
-     (let [new-args (map #(calculate % pool) (:args term))]
-       (execute (->PrologMethod (:name term)
-                                new-args
-                                (:func term)) pool))
-   (prolog-number? term)
-     term
-   :else
-     (throw (Exception. (str (type term)
-                             " is not an arithmetic expression.")))))
-
-
-(defn math-equals [[term-x term-y] pool]
-  (unify-terms term-x term-y pool))
-
-
-(defn math-is [[term-x term-y] pool]
+(defn create-operator [prec type name]
   (cond
 
-   (prolog-variable? term-x)
-     (=variable= term-x (calculate term-y pool) pool)
-
-   (prolog-number? term-x)
-     (math-equals
-      [term-x (calculate term-y pool)]
-      pool)
-   :else
-   (throw (Exception. (str
-                       "'"
-                       (type term-x)
-                       "' cannot be used in 'is' operator!")))))
+   (= "xf" type)  (PrologOperator. prec name :less :none)
+   (= "yf" type)  (PrologOperator. prec name :same :none)
+   (= "xfx" type) (PrologOperator. prec name :less :less)
+   (= "xfy" type) (PrologOperator. prec name :less :same)
+   (= "yfx" type) (PrologOperator. prec name :same :less)
+   (= "fx" type)  (PrologOperator. prec name :none :less)
+   (= "fy" type)  (PrologOperator. prec name :none :same)
+   :else (throw (Exception. (str "Unknown Operator type: " type ".")))))
 
 
-(def math-functions {:+ (>term< [:#met :+ [:A :B] math-add])
-                     :- (>term< [:#met :- [:A :B] math-substract])
-                     :* (>term< [:#met :* [:A :B] math-multiply])
-                     :is (>term< [:#met :is [:A :B] math-is])
-                     := (>term< [:#met := [:A :B] math-equals])})
+(def built-in-unary {})
+(def built-in-binary {})
+
+
+(def operators-binary (atom built-in-unary))
+(def operators-unary (atom built-in-binary))
+
+
+(defn operator-arity
+  "Returns the arity of a Prolog Operator (1 or 2)."
+  [op]
+  (if (or (= :none (:left op))
+          (= :none (:right op)))
+    1
+    2))
+
+
+(defn prolog-operator?
+  "Returns wheater there is an Operator with that name."
+  [name]
+  (if (and (nil? (@unary-operators name))
+           (nil? (@binary-operators name)))
+    false
+    true))
+
