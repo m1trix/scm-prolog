@@ -21,7 +21,7 @@
 
 (def built-in-unary {})
 (def built-in-binary
-  {":-" (create-operator 1200 "xfx" ":-"
+  {":-" (create-operator 1200 "xfx" ":-")
    "," (create-operator 1000 "xfy" ",")
    ";" (create-operator 1100 "xfy" ";")})
 
@@ -42,11 +42,19 @@
 (defn prolog-operator?
   "Returns wheater there is an Operator with that name."
   [name]
-  (if (and (nil? (@unary-operators name))
-           (nil? (@binary-operators name)))
+  (if (and (nil? (@operators-unary name))
+           (nil? (@operators-binary name)))
     false
     true))
 
 
 (defn make-fact [op args]
   (->PrologFact (-> op :name ->PrologAtom) (->PrologArguments args)))
+
+
+(defn get-binary [name]
+  (get @operators-binary name))
+
+
+(defn get-unary [name]
+  (get @operators-unary name))

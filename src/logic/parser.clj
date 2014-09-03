@@ -5,7 +5,8 @@
 ;;  that it describes.
 ;;
 (ns logic.parser
-  (:use [logic.term])
+  (:use [logic.term]
+        [logic.operator])
   (:refer-clojure :exclude [resolve]))
 
 
@@ -205,16 +206,33 @@
         [(create term) term-text]))))
 
 
-(defn find-operator [input]
+
+(defn find-word-operator [input]
   (loop [name ""
          text input]
-    (cond
+    (if (re-matches (re-pattern "[a-zA-Z0-9_]")
+                    (subs input 0 1))
+      (recur (str name (first text))
+             (subs text 1))
+      [name text])))
 
-     (= \space (first text))
-     [name text]
 
-     (= \( (first text))
-     ["" input])))
+(defn find-symbol-operator [input]
+  (loop [name ""
+         text input]
+    (if (re-matches (re-pattern "[a-zA-Z0-9_ \t]")
+                    (subs input 0 1))
+      [name text]
+      (recur (str name (first text))
+             (subs text 1)))))
+
+
+
+(defn find-operator [input]
+  (if (re-matches (re-pattern "[a-zA-Z0-9_]")
+                  (subs input 0 1))
+    (find-word-operator input)
+    (find-symbol-operator input)))
 
 
 (defn execute [op obs]
@@ -231,36 +249,17 @@
 
 
 (defn add-operation
-  [operations objects sign]
+  [operations objects new-op]
   (loop [ops operations
          obs objects]
-    (cond
+    (if (empty? ops)
+      [(conj ops {:op (get-binary name) :arity 2}) obs]
+      (let [top (peek ops)]
 
-     (empty? ops)
-     [(conj ops {:sign sign :arity 2}) obs]
+        (cond
 
-     (= \( sign)
-     [(conj ops {:sign sign :arity 0}) obs]
-
-     (= \) sign)
-     (if (= \( (-> ops peek :sign))
-       [(pop ops) obs]
-       (recur (pop ops) (execute (peek ops) obs)))
-
-     (and (= \, sign) (-> ops peek :sign (= \,)))
-     [(conj (pop ops) (assoc (peek ops) :arity (-> ops peek :arity inc))) obs]
-
-     (and (= \; sign) (-> ops peek :sign (= \;)))
-     [(conj (pop ops) (assoc (peek ops) :arity (-> ops peek :arity inc))) obs]
-
-     (>= (priority sign)
-         (-> ops peek :sign priority))
-     (recur (pop ops)
-            (execute (peek ops)
-                     obs))
-
-     :else
-     [(conj ops {:sign sign :arity 2}) obs])))
+         (< (:prec top) (:prec new-op))
+         (recur (pop ops) (execute top obs)))))))
 
 
 (defn parse [input]
@@ -270,10 +269,10 @@
          result []]
 
 ;;   DEBUG:
-;;     (print ops " ")
-;;     (print "[ ")
-;;     (doseq [x obs] (print (output x {}) ""))
-;;     (println "]")
+    (print ops " ")
+    (print "[ ")
+    (doseq [x obs] (print (output x {}) ""))
+    (println "]")
 
     (cond
 
@@ -291,4 +290,4 @@
        (if (= "" name)
          (let [[term rest-text] (extract-next text)]
            (recur rest-text ops (conj obs term) result))
-         ())))))
+         (add-operation ops obs name))))))
