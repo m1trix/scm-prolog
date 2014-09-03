@@ -210,29 +210,53 @@
 (defn find-word-operator [input]
   (loop [name ""
          text input]
-    (if (re-matches (re-pattern "[a-zA-Z0-9_]")
-                    (subs input 0 1))
-      (recur (str name (first text))
+    (cond
+
+
+     (empty? text)
+     [name ""]
+
+     (re-matches (re-pattern "[a-zA-Z0-9_]")
+                 (subs text 0 1))
+     (recur (str name (first text))
              (subs text 1))
-      [name text])))
+
+     :else
+     [name text])))
 
 
 (defn find-symbol-operator [input]
   (loop [name ""
          text input]
-    (if (re-matches (re-pattern "[a-zA-Z0-9_ \t]")
-                    (subs input 0 1))
-      [name text]
-      (recur (str name (first text))
-             (subs text 1)))))
+    (cond
+
+
+     (empty? text)
+     [name ""]
+
+     (re-matches (re-pattern "[a-zA-Z0-9_ \t]")
+                 (subs text 0 1))
+     [name text]
+
+     (= \space (first text))
+     [name text]
+
+     :else
+     (recur (str name (first text))
+            (subs text 1)))))
 
 
 
 (defn find-operator [input]
-  (if (re-matches (re-pattern "[a-zA-Z0-9_]")
-                  (subs input 0 1))
-    (find-word-operator input)
-    (find-symbol-operator input)))
+  (let [[name rest-text]
+        (if (re-matches (re-pattern "[a-zA-Z0-9_]")
+                        (subs input 0 1))
+          (find-word-operator input)
+          (find-symbol-operator input))]
+    (if (and (not (= "" name))
+             (prolog-operator? name))
+      [name rest-text]
+      ["" input])))
 
 
 (defn execute [op obs]
@@ -241,11 +265,22 @@
         rest-obs (subvec obs 0 index)]
     (cond
 
-     (= \, (:sign op)) (conj rest-obs (->PrologConjunction terms))
+     (= "," (-> op :op :name)) (conj rest-obs (->PrologConjunction terms))
 
-     (= \; (:sign op)) (conj rest-obs (->PrologDisjunction terms))
+     (= ";" (-> op :op :name)) (conj rest-obs (->PrologDisjunction terms))
 
-     (= ":-" (:sign op)) (conj rest-obs (->PrologRule (first terms) (second terms))))))
+     (= ":-" (-> op :op :name)) (conj rest-obs (->PrologRule (first terms) (second terms)))
+
+     :else (conj rest-obs (make-fact (:op op) terms)))))
+
+
+(defn execute-all [in-ops in-obs]
+  (loop [ops in-ops
+         obs in-obs]
+    (if  (empty? ops)
+      [[] obs]
+      (recur (pop ops)
+             (execute (peek ops) obs)))))
 
 
 (defn add-operation
@@ -253,13 +288,21 @@
   (loop [ops operations
          obs objects]
     (if (empty? ops)
-      [(conj ops {:op (get-binary name) :arity 2}) obs]
+      [(conj ops {:op new-op :arity 2}) obs]
       (let [top (peek ops)]
 
         (cond
 
+         (and (= (:name new-op) ",")
+              (= (-> top :op :name) ","))
+         [(conj (pop ops) (assoc top :arity (-> top :arity inc)))
+          obs]
+
          (< (:prec top) (:prec new-op))
-         (recur (pop ops) (execute top obs)))))))
+         (recur (pop ops) (execute top obs))
+
+         :else
+         [(conj ops {:op new-op :arity 2}) obs])))))
 
 
 (defn parse [input]
@@ -283,11 +326,19 @@
        (throw (Exception. "Missing '.'")))
 
      (= \space (first text))
-     (recur (subs text 1) ops obs result)
+     (recur(subs text 1) ops obs result)
+
+     (= \. (first text))
+     (let [[new-ops new-obs] (execute-all ops obs)]
+       (if (or (not (empty? ops))
+               (next obs))
+         (throw (Exception. (str "Missing operator before " (output (peek obs) {}) ".")))
+         (recur (subs text 1) [] [] (conj result (peek obs)))))
 
      :else
      (let [[name rest-text] (find-operator text)]
        (if (= "" name)
          (let [[term rest-text] (extract-next text)]
            (recur rest-text ops (conj obs term) result))
-         (add-operation ops obs name))))))
+         (let [[new-ops new-obs] (add-operation ops obs (get-binary name))]
+           (recur rest-text new-ops new-obs result)))))))

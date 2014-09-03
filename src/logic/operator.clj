@@ -19,7 +19,9 @@
    :else (throw (Exception. (str "Unknown Operator type: " type ".")))))
 
 
-(def built-in-unary {})
+(def built-in-unary
+  {"." (create-operator 9001 "xf" ".")})
+
 (def built-in-binary
   {":-" (create-operator 1200 "xfx" ":-")
    "," (create-operator 1000 "xfy" ",")
