@@ -24,12 +24,11 @@
                           :stack false}}))
 
 
-(def knowledge-base
-  (atom {"trace" (create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])
-         "notrace" (create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])
-         "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])}))
+(def user-terms
+  (atom {}))
 
-(def all-formulas {})
+
+(def built-in-terms (atom {}))
 
 
 (defn compile-file [[s]]
@@ -38,17 +37,28 @@
       (let [terms (parse line)]
         (doseq [term terms]
           (let [name (get-name term)
-                all (@knowledge-base name)]
+                built-in (@built-in-terms name)
+                user-defined (@user-terms name)]
             (cond
 
-             (nil? all)
-             (swap! knowledge-base assoc name [term])
+             (not (nil? built-in))
+             (throw (Exception. (str "Term \"" name "\" already exists.")))
+
+             (nil? user-defined)
+             (swap! user-terms assoc name [term])
 
              :else
-             (swap! knowledge-base assoc name (conj all term)))))))))
+             (swap! user-terms assoc name (conj user-defined term)))))))))
 
 
-(swap! knowledge-base assoc "compile" [(create [:form "compile" ["Filepath"] compile-file])])
+(reset! built-in-terms
+  {"trace" [(create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])]
+   "notrace" [(create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])]
+   "halt" [(create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])]
+   "compile" [(create [:form "compile" ["Filepath"] compile-file])]})
+
+
+(reset! user-terms @built-in-terms)
 
 
 ; =================================================================================== ;
@@ -109,20 +119,53 @@
 
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 ; #                                                                                 # ;
+; #  Tracing methods.                                                               # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
+
+(defn trace-call [term pool depth]
+  (if (:redo @debug)
+    (do
+      (print-yellow "  Redo: ")
+      (swap! debug assoc :redo false))
+    (print-green "  Call: "))
+  (print (str "(" depth ")") (output term pool) "? ")
+  (flush)
+  (read-line))
+
+
+(defn trace-fail [term pool depth]
+  (print-red "  Fail: ")
+  (print (str "(" depth ")") (output term pool) "? ")
+  (flush)
+  (read-line))
+
+
+(defn trace-exit [term pool depth]
+  (print-green "  Exit: ")
+  (print (str "(" depth ")") (output term pool) "? ")
+  (flush)
+  (read-line))
+
+
+
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
 ; #  Interpreting a Prolog Atom.                                                    # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
 (defmethod prove logic.term.PrologAtom
-  [atom query pool stack _ _]
-  (let [target (@knowledge-base (:name atom))]
-    (if (nil? target)
-      [false {} stack]
-      (let [[answer _ _] (resolve atom target pool)]
-        (if (true? answer)
-          [true pool stack]
-          [false {} stack])))))
+  [atom query pool stack depth start]
+  (let [fact (create [:fact (:name atom) []])
+        [new-query new-pool] (replace query fact pool)]
+    (prove fact new-query new-pool stack depth start)))
 
 
 (defmethod replace logic.term.PrologAtom
@@ -143,100 +186,133 @@
 (defmethod prove logic.term.PrologFact
   [fact query pool stack depth start]
   (let [name (-> fact :atom :name)
-        all (@knowledge-base name)
+        all (@user-terms name)
         limit (count all)]
-    (when (:info @debug)
-      (print-gray "    INFO: Proving ")
-      (print (output fact pool))
-      (println-gray "."))
-    (when (-> @debug :watch :query)
-      (println-gray (str "    GOAL:  " (output fact pool)))
-      (println-gray (str "    QUERY: " (output query pool))))
-    (when (-> @debug :watch :stack)
-      (output-stack stack))
-    (if (>= start limit)
+    (if (= start -1)
       [false {} stack]
-      (do
-        (when (:trace @debug)
-          (if (:redo @debug)
-            (do
-              (print-yellow "  Redo: ")
-              (swap! debug assoc :redo false))
-            (print-green "  Call: "))
-          (print (str "(" depth ")") (output fact pool) "? ")
-          (flush)
-          (read-line))
       (loop [clauses (subvec all start)
              index start]
         (if (empty? clauses)
           (do
-            (when (:trace @debug)
-              (print-red "  Fail: ")
-              (print (str "(" depth ")") (output fact pool) "? ")
-              (flush)
-              (read-line))
+            (when (:trace @debug) (trace-fail fact pool depth))
             [false {} stack])
-          (let [[target _] (generate (first clauses) {})
+          (do
+            (when (:trace @debug) (trace-call fact pool depth))
+            (let [[target _] (generate (first clauses) {})
+                  [status new-term res-pool] (resolve fact target pool)]
+              (if (false? status)
+                (recur (rest clauses) (inc index))
+                (let [new-pool (evaluate-pool res-pool)
+                      new-stack (if (>= (inc index) limit)
+                                  stack
+                                  (conj stack [query pool (inc index)]))]
+                  (if (true? status)
+                    (do
+                      (when (:trace @debug) (trace-exit fact new-pool depth))
+                      [true new-pool new-stack])
+                    (let [[rep-query rep-pool]
+                          (replace query new-term pool)]
+                      (prove new-term rep-query rep-pool new-stack depth 0))))))))))))
 
-                [status new-term res-pool]
-                (resolve fact target pool)
 
-                new-pool (evaluate-pool res-pool)
+;; (defmethod prove logic.term.PrologFact
+;;   [fact query pool stack depth start]
+;;   (let [name (-> fact :atom :name)
+;;         all (into [] (concat (built-in-terms name)
+;;                              (@user-terms name)))
+;;         limit (count all)]
+;;     (when (:info @debug)
+;;       (print-gray "    INFO: Proving ")
+;;       (print (output fact pool))
+;;       (println-gray "."))
+;;     (when (-> @debug :watch :query)
+;;       (println-gray (str "    GOAL:  " (output fact pool)))
+;;       (println-gray (str "    QUERY: " (output query pool))))
+;;     (when (-> @debug :watch :stack)
+;;       (output-stack stack))
+;;     (if (>= start limit)
+;;       [false {} stack]
+;;       (do
+;;         (when (:trace @debug)
+;;           (if (:redo @debug)
+;;             (do
+;;               (print-yellow "  Redo: ")
+;;               (swap! debug assoc :redo false))
+;;             (print-green "  Call: "))
+;;           (print (str "(" depth ")") (output fact pool) "? ")
+;;           (flush)
+;;           (read-line))
+;;       (loop [clauses (subvec all start)
+;;              index start]
+;;         (if (empty? clauses)
+;;           (do
+;;             (when (:trace @debug)
+;;               (print-red "  Fail: ")
+;;               (print (str "(" depth ")") (output fact pool) "? ")
+;;               (flush)
+;;               (read-line))
+;;             [false {} stack])
+;;           (let [[target _] (generate (first clauses) {})
 
-                new-stack (conj stack [query pool (inc index)])]
-            (cond
+;;                 [status new-term res-pool]
+;;                 (resolve fact target pool)
 
-             (false? status)
-             (do
-               (when (:info @debug)
-                 (print-gray "    INFO: ")
-                 (print (output fact pool))
-                 (print-gray "[")
-                 (print index)
-                 (print-gray "] is ")
-                 (print "false")
-                 (println-gray "."))
-               (recur (rest clauses) (inc index)))
+;;                 new-pool (evaluate-pool res-pool)
 
-             (true? status)
-             (do
-               (when (:info @debug)
-                 (print-gray "    INFO: ")
-                 (print (output fact new-pool))
-                 (print-gray "[")
-                 (print index)
-                 (print-gray "] is ")
-                 (print "true")
-                 (println-gray ".")
-                 (println-gray "    INFO: Pushing a Choisepoint:")
-                 (print-gray "          [query:] ")
-                 (println (output query pool))
-                 (print-gray "          [index:] ")
-                 (println (inc index)))
-               (when (:trace @debug)
-                 (print-green "  Exit: ")
-                 (print (str "(" depth ")") (output fact new-pool) "? ")
-                 (flush)
-                 (read-line))
-             [true new-pool new-stack])
+;;                 new-stack (conj stack [query pool (inc index)])]
+;;             (cond
 
-             :else
-             (do
-               (when (:info @debug)
-                 (print-gray "    INFO: ")
-                 (print (output fact new-pool))
-                 (print-gray "[")
-                 (print index)
-                 (print-gray "] is ")
-                 (print "true")
-                 (println-gray ".")
-                 (println-gray "    INFO: Pushing a Choisepoint:")
-                 (print-gray "          [query:] ")
-                 (println (output query pool))
-                 (print-gray "          [index:] ")
-                 (println (inc index)))
-               (let [[re-query re-pool] (replace query new-term new-pool)]
-                 (prove new-term re-query re-pool new-stack depth 0)))))))))))
+;;              (false? status)
+;;              (do
+;;                (when (:info @debug)
+;;                  (print-gray "    INFO: ")
+;;                  (print (output fact pool))
+;;                  (print-gray "[")
+;;                  (print index)
+;;                  (print-gray "] is ")
+;;                  (print "false")
+;;                  (println-gray "."))
+;;                (recur (rest clauses) (inc index)))
+
+;;              (true? status)
+;;              (do
+;;                (when (:info @debug)
+;;                  (print-gray "    INFO: ")
+;;                  (print (output fact new-pool))
+;;                  (print-gray "[")
+;;                  (print index)
+;;                  (print-gray "] is ")
+;;                  (print "true")
+;;                  (println-gray ".")
+;;                  (println-gray "    INFO: Pushing a Choisepoint:")
+;;                  (print-gray "          [query:] ")
+;;                  (println (output query pool))
+;;                  (print-gray "          [index:] ")
+;;                  (println (inc index)))
+;;                (when (:trace @debug)
+;;                  (print-green "  Exit: ")
+;;                  (print (str "(" depth ")") (output fact new-pool) "? ")
+;;                  (flush)
+;;                  (read-line))
+;;              [true new-pool new-stack])
+
+;;              :else
+;;              (do
+;;                (when (:info @debug)
+;;                  (print-gray "    INFO: ")
+;;                  (print (output fact new-pool))
+;;                  (print-gray "[")
+;;                  (print index)
+;;                  (print-gray "] is ")
+;;                  (print "true")
+;;                  (println-gray ".")
+;;                  (println-gray "    INFO: Pushing a Choisepoint:")
+;;                  (print-gray "          [query:] ")
+;;                  (println (output query pool))
+;;                  (print-gray "          [index:] ")
+;;                  (println (inc index)))
+;;                (let [[re-query re-pool] (replace query new-term new-pool)]
+;;                  (prove new-term re-query re-pool new-stack depth 0)))))))))))
 
 
 (defmethod replace logic.term.PrologFact
