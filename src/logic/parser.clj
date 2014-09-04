@@ -317,6 +317,10 @@
              (execute (peek ops) obs)))))
 
 
+(defn operators-clash [op-left op-right]
+  (throw (Exception. (str "Operators clash: \"" (:name op-left) "\" and \"" (:name op-right) "\"."))))
+
+
 (defn add-operation
   [operations objects new-op]
 
@@ -325,7 +329,7 @@
 
   (loop [ops operations
          obs objects]
-    (if (empty? ops)
+    (if (or (empty? ops) (= "(" (peek ops)))
       [(conj ops {:op new-op :arity (operator-arity new-op)}) obs]
       (let [top (peek ops)]
 
@@ -339,6 +343,24 @@
          (< (-> top :op :prec) (:prec new-op))
          (recur (pop ops) (execute top obs))
 
+         (= (-> top :op :prec) (:prec new-op))
+         (cond
+
+
+          (or (and (= (-> top :op :right) :same) (= (:left new-op) :less))
+              (and (= (-> top :op :right) :same) (= (:left new-op) :none)))
+          [(conj ops {:op new-op :arity (operator-arity new-op)}) obs]
+
+
+          (or (and (= (-> top :op :right) :less) (= (:left new-op) :same))
+              (and (= (-> top :op :right) :none) (= (:left new-op) :same)))
+          (recur (pop ops) (execute top obs))
+
+
+          :else
+          (operators-clash (:op top) new-op))
+
+
          :else
          [(conj ops {:op new-op :arity (operator-arity new-op)}) obs])))))
 
@@ -347,7 +369,8 @@
   (loop [text input
          ops []
          obs []
-         result []]
+         result []
+         expecting-unary true]
 
 ;;   DEBUG:
 ;;     (print ops " ")
@@ -361,23 +384,49 @@
      (or (empty? text)
          (= \% (first text)))
      (if (empty? obs)
-       result
+       (do
+;;          (doseq [x result] (println (output x {})))
+         result)
        (throw (Exception. "Missing '.'")))
 
      (= \space (first text))
-     (recur(subs text 1) ops obs result)
+     (recur(subs text 1) ops obs result expecting-unary)
 
      (= \. (first text))
      (let [[new-ops new-obs] (execute-all ops obs)]
        (if (or (not (empty? new-ops))
                (next new-obs))
          (throw (Exception. (str "Missing operator before " (output (peek new-obs) {}) ".")))
-         (recur (subs text 1) [] [] (conj result (peek new-obs)))))
+         (recur (subs text 1) [] [] (conj result (peek new-obs)) true)))
+
+     (= \( (first text))
+     (recur (subs text 1) (conj ops "(") obs result true)
+
+     (= \) (first text))
+     (if (= "(" (peek ops))
+       (throw (Exception. str ("Missing operator before: \"" text "\".")))
+       (let [[new-ops new-obs]
+             (loop [new-ops ops
+                    new-obs obs]
+               (cond
+
+                (empty? new-ops)
+                (throw (Exception. (str "Missing '(' before: \"" text "\".")))
+
+                (= "(" (peek new-ops))
+                [new-ops new-obs]
+
+                :else
+                (recur (pop new-ops) (execute (peek new-ops) new-obs))))]
+         (recur (subs text 1) (pop new-ops) new-obs result false)))
 
      :else
      (let [[name rest-text] (find-operator text)]
        (if (= "" name)
          (let [[term rest-text] (extract-next text)]
-           (recur rest-text ops (conj obs term) result))
-         (let [[new-ops new-obs] (add-operation ops obs (get-binary name))]
-           (recur rest-text new-ops new-obs result)))))))
+           (recur rest-text ops (conj obs term) result false))
+         (let [operator (if expecting-unary
+                          (get-unary name)
+                          (get-binary name))
+               [new-ops new-obs] (add-operation ops obs operator)]
+           (recur rest-text new-ops new-obs result true)))))))
