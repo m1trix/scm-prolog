@@ -99,17 +99,30 @@
 
 
 (defn find-number
-  "If a string starts with a number the function
+  "If a string starts with a number, the function
   returns a string of that number and the rest of the input.
   Otherwise it returns an empty string and the same input."
   [input]
   (loop [num ""
-        res input]
-    (let [sym (first res)]
-    (if (re-matches (re-pattern #"[0-9.]") (str sym))
-      (recur (str num sym)
-             (subs res 1))
-      [num res]))))
+         text input
+         point true]
+    (let [sym (first text)]
+      (cond
+
+       (re-matches (re-pattern #"[0-9]") (str sym))
+       (recur (str num sym)
+              (subs text 1)
+              point)
+
+       (= \. sym)
+       (if (and (true? point)
+                (next text)
+                (re-matches (re-pattern #"[0-9]") (subs text 1 2)))
+         (recur (str num sym) (subs text 1) false)
+         [num text])
+
+       :else
+       [num text]))))
 
 
 (defn find-next
@@ -261,7 +274,7 @@
      (empty? text)
      [name ""]
 
-     (re-matches (re-pattern "[a-zA-Z0-9_ \t]")
+     (re-matches (re-pattern "[a-zA-Z0-9_ \t()]")
                  (subs text 0 1))
      [name text]
 

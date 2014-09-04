@@ -20,7 +20,25 @@
 
 
 (def built-in-unary
-  {"." (create-operator 9001 "xf" ".")})
+  {":-"  (create-operator 1200 "fx" ":-")
+   "?-"  (create-operator 1200 "fx" "?-")
+
+   "dynamic"  (create-operator 1150 "fx" "dynamic")
+   "discontiguous"  (create-operator 1150 "fx" "discontiguous")
+   "initialization"  (create-operator 1150 "fx" "initialization")
+   "module_transparent"  (create-operator 1150 "fx" "module_transparent")
+   "multifile"  (create-operator 1150 "fx" "multifile")
+   "thread_local"  (create-operator 1150 "fx" "thread_local")
+   "volatile"  (create-operator 1150 "fx" "volatile")
+
+   "\\+" (create-operator 900 "fy" "?\\+")
+   "~"   (create-operator 900 "fx" "~")
+
+   "+"   (create-operator 500 "fx" "+")
+   "-"   (create-operator 500 "fx" "-")
+   "?"   (create-operator 500 "fx" "?")
+   "\\"  (create-operator 500 "fx" "\\")})
+
 
 (def built-in-binary
   {":-"  (create-operator 1200 "xfx" ":-")
