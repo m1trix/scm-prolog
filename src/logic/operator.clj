@@ -24,12 +24,13 @@
 
 (def built-in-binary
   {":-" (create-operator 1200 "xfx" ":-")
-   "," (create-operator 1000 "xfy" ",")
-   ";" (create-operator 1100 "xfy" ";")})
+   ","  (create-operator 1000 "xfy" ",")
+   ";"  (create-operator 1100 "xfy" ";")})
 
 
-(def operators-binary (atom built-in-unary))
-(def operators-unary (atom built-in-binary))
+(def operators-binary (atom built-in-binary))
+(def operators-unary (atom built-in-unary))
+
 
 
 (defn operator-arity
@@ -51,12 +52,19 @@
 
 
 (defn make-fact [op args]
-  (->PrologFact (-> op :name ->PrologAtom) (->PrologArguments args)))
+  (->PrologFact (-> op :name ->PrologAtom)
+                (->PrologArguments args)))
 
 
 (defn get-binary [name]
-  (get @operators-binary name))
+  (let [op (get @operators-binary name)]
+    (if (nil? op)
+      (throw (Exception. (str "There is no binary operator \"" name "\".")))
+      op)))
 
 
 (defn get-unary [name]
-  (get @operators-unary name))
+  (let [op (get @operators-unary name)]
+    (if (nil? op)
+      (throw (Exception. (str "There is no unary operator \"" name "\".")))
+      op)))

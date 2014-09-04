@@ -263,6 +263,9 @@
   (let [index (- (count obs) (:arity op))
         terms (subvec obs index)
         rest-obs (subvec obs 0 index)]
+
+    (println "Executing:" (-> op :op :name))
+
     (cond
 
      (= "," (-> op :op :name)) (conj rest-obs (->PrologConjunction terms))
@@ -277,14 +280,19 @@
 (defn execute-all [in-ops in-obs]
   (loop [ops in-ops
          obs in-obs]
-    (if  (empty? ops)
-      [[] obs]
+    (if (empty? ops)
+      (do
+        (println "All operations executed.")
+        [[] obs])
       (recur (pop ops)
              (execute (peek ops) obs)))))
 
 
 (defn add-operation
   [operations objects new-op]
+
+  (println "Adding operation:" (:name new-op))
+
   (loop [ops operations
          obs objects]
     (if (empty? ops)
@@ -330,10 +338,10 @@
 
      (= \. (first text))
      (let [[new-ops new-obs] (execute-all ops obs)]
-       (if (or (not (empty? ops))
-               (next obs))
-         (throw (Exception. (str "Missing operator before " (output (peek obs) {}) ".")))
-         (recur (subs text 1) [] [] (conj result (peek obs)))))
+       (if (or (not (empty? new-ops))
+               (next new-obs))
+         (throw (Exception. (str "Missing operator before " (output (peek new-obs) {}) ".")))
+         (recur (subs text 1) [] [] (conj result (peek new-obs)))))
 
      :else
      (let [[name rest-text] (find-operator text)]
