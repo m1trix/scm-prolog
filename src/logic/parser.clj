@@ -149,26 +149,43 @@
   (if-not (= \[ (first input))
     [nil input]
     (loop [elems []
-           text (subs input 1)]
+           text (subs input 1)
+           expecting-elem true]
       (cond
 
+       (= \space (first text))
+       (recur elems (subs text 1) expecting-elem)
+
        (= \, (first text))
-       (recur elems (subs text 1))
+       (if expecting-elem
+         (if (empty? elems)
+           (throw (Exception. "Missing element: \"(\" (here) \",\""))
+           (throw (Exception. (str "Missing element after: \"" (last elems) ",\" (here) ."))))
+         (recur elems (subs text 1) true))
 
        (= \[ (first text))
-       (let [[new-list new-text] (extract-list text)]
-         (recur (conj elems new-list) new-text))
+       (if (false? expecting-elem)
+         (throw (Exception. (str "Missing ',' after: \"" (last elems) "\" (here) .")))
+         (let [[new-list new-text] (extract-list text)]
+           (recur (conj elems new-list) new-text false)))
 
        (= \| (first text))
-       (recur (conj elems "|")
-              (subs text 1))
+       (if expecting-elem
+         (throw (Exception. "Missing element before '|' ."))
+         (recur (conj elems "|")
+                (subs text 1)
+                true))
 
        (= \] (first text))
-       [elems (subs text 1)]
+       (if expecting-elem
+         (throw (Exception. "Missing element before ']'."))
+         [elems (subs text 1)])
 
        :else
-       (let [[term new-text] (find-next text)]
-         (recur (conj elems term) new-text))))))
+       (if (false? expecting-elem)
+         (throw (Exception. (str "Missing ',': \"" (last elems) "\" (here) .")))
+         (let [[term new-text] (find-next text)]
+           (recur (conj elems term) new-text false)))))))
 
 
 (defn extract-arguments
@@ -176,22 +193,32 @@
   (if-not (= \( (first input))
     [nil input]
     (loop [args []
-           text (subs input 1)]
+           text (subs input 1)
+           check-arg true]
       (cond
 
+       (= \space (first text))
+       (recur args (subs text 1) check-arg)
+
        (= \, (first text))
-       (recur args (subs text 1))
+       (recur args (subs text 1) true)
 
        (= \) (first text))
-       [(create-arguments args) (subs text 1)]
+       (if check-arg
+         (throw (Exception. (str "Missing argument: \"" (last args) ", \" (here) .")))
+         [(create-arguments args) (subs text 1)])
 
        (= \[ (first text))
-       (let [[list new-text] (extract-list text)]
-         (recur (conj args list) new-text))
+       (if (false? check-arg)
+         (throw (Exception. (str "Missing ',': \"" (last args) "\" (here) \"" text "\"." )))
+         (let [[list new-text] (extract-list text)]
+           (recur (conj args list) new-text false)))
 
        :else
-       (let [[term new-text] (find-next text)]
-          (recur (conj args term) new-text))))))
+       (if (false? check-arg)
+         (throw (Exception. (str "Missing ',': \"" (last args) "\" (here) \"" text "\"." )))
+         (let [[term new-text] (find-next text)]
+           (recur (conj args term) new-text false)))))))
 
 
 (defn extract-next [text]
@@ -299,7 +326,7 @@
   (loop [ops operations
          obs objects]
     (if (empty? ops)
-      [(conj ops {:op new-op :arity 2}) obs]
+      [(conj ops {:op new-op :arity (operator-arity new-op)}) obs]
       (let [top (peek ops)]
 
         (cond
@@ -309,15 +336,15 @@
          [(conj (pop ops) (assoc top :arity (-> top :arity inc)))
           obs]
 
-         (< (:prec top) (:prec new-op))
+         (< (-> top :op :prec) (:prec new-op))
          (recur (pop ops) (execute top obs))
 
          :else
-         [(conj ops {:op new-op :arity 2}) obs])))))
+         [(conj ops {:op new-op :arity (operator-arity new-op)}) obs])))))
 
 
 (defn parse [input]
-  (loop [text (remove-spaces input)
+  (loop [text input
          ops []
          obs []
          result []]
@@ -327,6 +354,7 @@
 ;;     (print "[ ")
 ;;     (doseq [x obs] (print (output x {}) ""))
 ;;     (println "]")
+;;     (println "Text:" text)
 
     (cond
 
