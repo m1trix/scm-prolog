@@ -163,9 +163,16 @@
 
 (defmethod prove logic.term.PrologAtom
   [atom query pool stack depth start]
-  (let [fact (create [:fact (:name atom) []])
-        [new-query new-pool] (replace query fact pool)]
-    (prove fact new-query new-pool stack depth start)))
+  (let [[target] (@built-in-terms (:name atom))]
+    (if (nil? target)
+      (let [fact (create [:fact (:name atom) []])
+            [new-query _] (replace query fact pool)]
+        (prove fact new-query pool stack depth start))
+
+      (let [[status _ _] (resolve atom target pool)]
+        (if (true? status)
+          [true pool stack]
+          [false {} stack])))))
 
 
 (defmethod replace logic.term.PrologAtom
@@ -188,6 +195,8 @@
   (let [name (-> fact :atom :name)
         all (@user-terms name)
         limit (count all)]
+
+    (when (:trace @debug) (trace-call fact pool depth))
     (if (= start -1)
       [false {} stack]
       (loop [clauses (subvec all start)
@@ -197,7 +206,6 @@
             (when (:trace @debug) (trace-fail fact pool depth))
             [false {} stack])
           (do
-            (when (:trace @debug) (trace-call fact pool depth))
             (let [[target _] (generate (first clauses) {})
                   [status new-term res-pool] (resolve fact target pool)]
               (if (false? status)
@@ -211,7 +219,7 @@
                       (when (:trace @debug) (trace-exit fact new-pool depth))
                       [true new-pool new-stack])
                     (let [[rep-query rep-pool]
-                          (replace query new-term pool)]
+                          (replace query new-term new-pool)]
                       (prove new-term rep-query rep-pool new-stack depth 0))))))))))))
 
 
@@ -340,27 +348,10 @@
         (prove (:body rule) query pool stack (inc depth) start)]
     (if (false? answer)
       (do
-        (when (:info @debug)
-          (print-gray "    INFO: Rule is ")
-          (print "false")
-          (println-gray "."))
-        (when (:trace @debug)
-          (when-not (:redo @debug)
-            (print-red "  Fail: ")
-            (print (str "(" depth ")") (output (:head rule) pool) "? ")
-            (flush)
-            (read-line)))
+        (when (:trace @debug) (trace-fail (:head rule) pool depth))
         [false {} new-stack])
       (do
-        (when (:info @debug)
-          (print-gray "    INFO: Rule is ")
-          (print "true")
-          (println-gray "."))
-        (when (:trace @debug)
-          (print-green "  Exit: ")
-          (print (str "(" depth ")") (output (:head rule) new-pool) "? ")
-          (flush)
-          (read-line))
+        (when (:trace @debug) (trace-exit (:head rule) new-pool depth))
         [true new-pool new-stack]))))
 
 
@@ -390,17 +381,9 @@
          pool in-pool
          stack in-stack
          index start]
-    (when (:info @debug)
-          (print-gray "    INFO: Proving Conjunction[")
-          (print (count goals))
-          (println-gray "]."))
+
     (if (empty? goals)
-      (do
-        (when (:info @debug)
-          (print-gray "    INFO: Conjunction is")
-          (print "true")
-          (println-gray "."))
-        [true pool stack])
+      [true pool stack]
       (let [[status new-pool new-stack]
             (prove (first goals) query pool stack depth index)]
         (if (false? status)
