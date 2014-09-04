@@ -264,7 +264,8 @@
         terms (subvec obs index)
         rest-obs (subvec obs 0 index)]
 
-    (println "Executing:" (-> op :op :name))
+;;     DEBUG:
+;;       (println "Executing:" (-> op :op :name))
 
     (cond
 
@@ -282,7 +283,8 @@
          obs in-obs]
     (if (empty? ops)
       (do
-        (println "All operations executed.")
+;;         DEBUG:
+;;           (println "All operations executed.")
         [[] obs])
       (recur (pop ops)
              (execute (peek ops) obs)))))
@@ -291,7 +293,8 @@
 (defn add-operation
   [operations objects new-op]
 
-  (println "Adding operation:" (:name new-op))
+;;   DEBUG:
+;;     (println "Adding operation:" (:name new-op))
 
   (loop [ops operations
          obs objects]
@@ -320,10 +323,10 @@
          result []]
 
 ;;   DEBUG:
-    (print ops " ")
-    (print "[ ")
-    (doseq [x obs] (print (output x {}) ""))
-    (println "]")
+;;     (print ops " ")
+;;     (print "[ ")
+;;     (doseq [x obs] (print (output x {}) ""))
+;;     (println "]")
 
     (cond
 
