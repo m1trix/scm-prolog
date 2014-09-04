@@ -29,6 +29,8 @@
          "notrace" (create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])
          "halt" (create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])}))
 
+(def all-formulas {})
+
 
 (defn compile-file [[s]]
   (with-open [rdr (reader (clojure.string/replace (:string s) #"\"" ""))]
