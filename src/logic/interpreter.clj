@@ -440,6 +440,36 @@
 ; =================================================================================== ;
 ; =================================================================================== ;
 
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Conjunction.                                             # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
+
+(defmethod prove logic.term.PrologDisjunction
+  [disj query pool stack depth start]
+  (let [goal (-> disj :terms first)
+        rest-terms (-> disj :terms (subvec 1))
+        [new-query new-pool] (replace query goal pool)
+        [check-query check-pool] (if (empty? rest-terms)
+                                   [query pool]
+                                   (replace query (->PrologDisjunction rest-terms) pool))
+        new-stack (if (empty? rest-terms)
+                    stack
+                    (conj stack [check-query check-pool 0]))]
+    (prove goal new-query new-pool new-stack depth 0)))
+
+
+(defmethod replace logic.term.PrologDisjunction
+  [disj term pool]
+  [term pool])
+
+
+; =================================================================================== ;
+; =================================================================================== ;
+
 
 (defn interpret
   "Given a term, pool, stack, depth and start index,
