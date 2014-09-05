@@ -60,8 +60,6 @@
 (defrecord PrologVariable [name])
 
 
-
-;; TODO
 (defn prolog-variable? [var]
   (= (type var)
      logic.term.PrologVariable))

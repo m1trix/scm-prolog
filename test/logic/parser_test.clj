@@ -1,25 +1,32 @@
 (ns logic.parser-test
   (:use logic.parser
-        clojure.test))
+        logic.term
+        clojure.test)
+  (:refer-clojure :exclude [resolve]))
 
 (deftest test-parser
 
   (testing "Parsing Operators"
     (is (= ["operator" " rest"] (find-word-operator "operator rest")))
     (is (= ["->" "atom"] (find-symbol-operator "->atom")))
-    (is (= [":-" "Var"] (find-operator ":-Var")))
 
+    (is (= [":-" "Var"] (find-operator ":-Var")))
     (is (= ["" " text"] (find-operator " text")))
     (is (= ["" "=>"] (find-operator "=>")))
 
-    (is (= ["." "and more"] (find-operator ".and more")))
+    (is (not= ["." "and more"] (find-operator ".and more")))
     (is (= ["," "and more"] (find-operator ",and more"))))
 
-  (testing "Parsing Terms"
 
-    (is (= [[1 "Var" "atom" "\"string\""] "."] (extract-list "[1,Var, atom, \"string\" ].")))
-    (is (= [[1 2 3 "|" [4 5]] "."] (extract-list "[1,2,3 | [4, 5]].")))
-    (is (= [["A" "|" "X"] "."] (extract-list "[A | X]."))))
+  (testing "Parsing Numbers"
+    (is (= ["11" "+2"] (find-number "11+2")))
+    (is (= ["1" ",2"] (find-number "1,2")))
+    (is (= ["6.6" ",2"] (find-number "6.6,2")))
+    (is (= ["6.6" ".2"] (find-number "6.6.2"))))
 
-  (testing "Shunting-Yard"
-    (is (= [[{:op "," :arity 2}] []] (add-operation [] [] ",")))))
+  (testing "Parsing Lists"
+    (is (= [(create [1 2 3])] (parse "[1,2,3].")))
+    (is (= [(create [1 2 "|" "X"])] (parse "[1,2|X].")))
+    (is (= [(create [1 2 "|" []])] (parse "[1,2|[]].")))
+    (is (= [(create [1 2 "|" [3]])] (parse "[1,2|[3]].")))
+    (is (= [(create [])] (parse "[].")))))

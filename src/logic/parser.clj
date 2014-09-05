@@ -10,20 +10,6 @@
   (:refer-clojure :exclude [resolve]))
 
 
-(defn remove-spaces [input]
-  (->> input
-       (re-seq (re-pattern #"\"[^\"]*\"|\'[^\']*\'|[^'\"]+"))
-       (map #(if (or (re-matches (re-pattern #"\"[^\"]*\"") %)
-                     (re-matches (re-pattern #"'[^']*'") %))
-               %
-               (-> %
-                   (clojure.string/replace #"[ ]+" " ")
-                   (clojure.string/replace #"(?<=[a-z0-9A-Z])[ ](?=[a-zA-Z0-9\[(])" "'")
-                   (clojure.string/replace #"[ ]" "")
-                   (clojure.string/replace #"'" " "))))
-       (reduce str)))
-
-
 (defn find-atom-single
   "If a string starts with a single word atom name
   the function returns the name and the rest of the string.
@@ -126,7 +112,11 @@
 
 
 (defn find-next
+  "The function finds the next Prolog Term (if there is one)
+  in a stirng and returns ['<term>', <rest_of_string>] vector.
+  If there is no Term, [\"\", <input_string>]."
   [input]
+  (println "Finding:" input)
   (let [[atom res] (find-atom input)]
     (if-not (= "" atom) [atom res]
 
@@ -143,6 +133,9 @@
 
 
 (defn extract-atom
+  "Creates a PrologAtom from a string.
+  Returns: [<atom>, <rest_of_string>].
+  Returns: [nil, <input_string>], if there is no Atom."
   [input]
   (let [[atom result] (find-atom input)]
     (if (= "" atom)
@@ -151,6 +144,9 @@
 
 
 (defn extract-variable
+  "Creates a PrologVariable from a string.
+  Returns: [<variable>, <rest_of_string>]
+  Returns: [nil, <input_string>], if there is no Variable."
   [input]
   (let [[var result] (find-variable input)]
     (if (= "" var)
@@ -158,50 +154,60 @@
       [(create var) result])))
 
 
-(defn extract-list [input]
+(defn extract-list
+  "Creates a vector of ProlotTerms from a string.
+  Returns: [[<elements>], <rest_of_string>]
+  Returns: [nil, <input_string>], if there is no List."
+  [input]
+  (println "Exctracing a list.")
   (if-not (= \[ (first input))
     [nil input]
-    (loop [elems []
-           text (subs input 1)
-           expecting-elem true]
-      (cond
+    (if (= \] (second input))
+      [[] (subs input 2)]
+      (loop [elems []
+             text (subs input 1)
+             expecting-elem true]
+        (cond
 
-       (= \space (first text))
-       (recur elems (subs text 1) expecting-elem)
+         (= \space (first text))
+         (recur elems (subs text 1) expecting-elem)
 
-       (= \, (first text))
-       (if expecting-elem
-         (if (empty? elems)
-           (throw (Exception. "Missing element: \"(\" (here) \",\""))
-           (throw (Exception. (str "Missing element after: \"" (last elems) ",\" (here) ."))))
-         (recur elems (subs text 1) true))
+         (= \, (first text))
+         (if expecting-elem
+           (if (empty? elems)
+             (throw (Exception. "Missing element: \"(\" (here) \",\""))
+             (throw (Exception. (str "Missing element after: \"" (last elems) ",\" (here) ."))))
+           (recur elems (subs text 1) true))
 
-       (= \[ (first text))
-       (if (false? expecting-elem)
-         (throw (Exception. (str "Missing ',' after: \"" (last elems) "\" (here) .")))
-         (let [[new-list new-text] (extract-list text)]
-           (recur (conj elems new-list) new-text false)))
+         (= \[ (first text))
+         (if (false? expecting-elem)
+           (throw (Exception. (str "Missing ',' after: \"" (last elems) "\" (here) .")))
+           (let [[new-list new-text] (extract-list text)]
+             (recur (conj elems new-list) new-text false)))
 
-       (= \| (first text))
-       (if expecting-elem
-         (throw (Exception. "Missing element before '|' ."))
-         (recur (conj elems "|")
-                (subs text 1)
-                true))
+         (= \| (first text))
+         (if expecting-elem
+           (throw (Exception. "Missing element before '|' ."))
+           (recur (conj elems "|")
+                  (subs text 1)
+                  true))
 
-       (= \] (first text))
-       (if expecting-elem
-         (throw (Exception. "Missing element before ']'."))
-         [elems (subs text 1)])
+         (= \] (first text))
+         (if expecting-elem
+           (throw (Exception. "Missing element before ']'."))
+           [elems (subs text 1)])
 
-       :else
-       (if (false? expecting-elem)
-         (throw (Exception. (str "Missing ',': \"" (last elems) "\" (here) .")))
-         (let [[term new-text] (find-next text)]
-           (recur (conj elems term) new-text false)))))))
+         :else
+         (if (false? expecting-elem)
+           (throw (Exception. (str "Missing ',': \"" (last elems) "\" (here) .")))
+           (let [[term new-text] (find-next text)]
+             (recur (conj elems term) new-text false))))))))
 
 
 (defn extract-arguments
+  "Creates a ProlotArguments object from a string.
+  Returns: [<arguments>, <rest_of_string>]
+  Returns: [nil, <input_string>], if there are no Arguments."
   [input]
   (if-not (= \( (first input))
     [nil input]
@@ -235,6 +241,9 @@
 
 
 (defn extract-next [text]
+  "Recognizes and extracts the first Prolog Term from a stirng.
+  Returns: [<term>, <rest_of_string>]
+  Returns: [nil, <input_string>], if no Term is recognized."
   (let [[atom atom-text :as result] (extract-atom text)]
     (if atom
       (let [[args fact-text] (extract-arguments atom-text)]
@@ -242,12 +251,21 @@
           [(->PrologFact atom args) fact-text]
           result))
 
-      (let [[term term-text] (find-next text)]
-        [(create term) term-text]))))
+      (let [[parsed-list text-after-list] (extract-list text)]
+        (if (= nil parsed-list)
+          (let [[term term-text] (find-next text)]
+            [(create term) term-text])
+          [(create parsed-list) text-after-list])))))
 
 
 
-(defn find-word-operator [input]
+(defn find-word-operator
+  "Finds and extracts the name of an Operator,
+  made by a single word.
+  Returns: [<name> <rest_of_text>].
+  Returns: [\"\" <input_string>] if the name is
+  not recognized as a Prolog Operator."
+  [input]
   (loop [name ""
          text input]
     (cond
@@ -265,7 +283,13 @@
      [name text])))
 
 
-(defn find-symbol-operator [input]
+(defn find-symbol-operator
+  "Finds and extracts the name of an Operator,
+  made by a group of symbols.
+  Returns: [<name> <rest_of_text>].
+  Returns: ['' <input_string>] if the name is
+  not recognized as a Prolog Operator."
+  [input]
   (loop [name ""
          text input]
     (cond
@@ -288,6 +312,11 @@
 
 
 (defn find-operator [input]
+  "Finds and extracts the name of an Operator
+  contained in the begining of the stirng.
+  Returns: [<name> <rest_of_text>].
+  Returns: [\"\" <input_string>] if the name is
+  not recognized as a Prolog Operator."
   (let [[name rest-text]
         (if (re-matches (re-pattern "[a-zA-Z0-9_]")
                         (subs input 0 1))
@@ -300,6 +329,9 @@
 
 
 (defn execute [op obs]
+  "Executes an operation by using Terms
+  from a stack as operands.
+  The result is pushed on the top of the stack."
   (let [index (- (count obs) (:arity op))
         terms (subvec obs index)
         rest-obs (subvec obs 0 index)]
@@ -309,18 +341,27 @@
 
     (cond
 
-     (= "," (-> op :op :name)) (conj rest-obs (->PrologConjunction terms))
+     (= "," (-> op :op :name))
+     (conj rest-obs (->PrologConjunction terms))
 
-     (= ";" (-> op :op :name)) (conj rest-obs (->PrologDisjunction terms))
+     (= ";" (-> op :op :name))
+     (conj rest-obs (->PrologDisjunction terms))
 
-     (= "not" (-> op :op :name)) (conj rest-obs (->PrologNegation (first terms)))
+     (= "not" (-> op :op :name))
+     (conj rest-obs (->PrologNegation (first terms)))
 
-     (= ":-" (-> op :op :name)) (conj rest-obs (->PrologRule (first terms) (second terms)))
+     (= ":-" (-> op :op :name))
+     (conj rest-obs (->PrologRule (first terms)
+                                  (second terms)))
 
      :else (conj rest-obs (make-fact (:op op) terms)))))
 
 
 (defn execute-all [in-ops in-obs]
+  "Executes all operations from a given stack by
+  using objects from another stack as operands.
+  The result of each operation is pushed on the
+  top of the second stack."
   (loop [ops in-ops
          obs in-obs]
     (if (empty? ops)
@@ -332,11 +373,23 @@
              (execute (peek ops) obs)))))
 
 
-(defn operators-clash [op-left op-right]
-  (throw (Exception. (str "Operators clash: \"" (:name op-left) "\" and \"" (:name op-right) "\"."))))
+(defn operators-clash
+  "Throws an Exception, containg a message about
+  two Prolog Operators which precendeces clash."
+  [op-left op-right]
+  (throw
+   (Exception.
+    (str "Operators clash: \""
+         (:name op-left)
+         "\" and \""
+         (:name op-right)
+         "\"."))))
 
 
 (defn add-operation
+  "Adds an Operator to a stack of Operators
+  by using the Shunting-Yard algorithm to pop
+  and execute previous Operations from the stack."
   [operations objects new-op]
 
 ;;   DEBUG:
@@ -380,7 +433,10 @@
          [(conj ops {:op new-op :arity (operator-arity new-op)}) obs])))))
 
 
-(defn parse [input]
+(defn parse
+  "Parses a string and returns a vector
+  of Prolog Terms recognized in the string."
+  [input]
   (loop [text input
          ops []
          obs []

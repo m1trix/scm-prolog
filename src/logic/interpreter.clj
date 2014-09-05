@@ -10,19 +10,9 @@
 ; =================================================================================== ;
 ; =================================================================================== ;
 
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #  This is the source of all knowledge.                                           # ;
-; #  Whatever gets loaded to the program goes here.                                 # ;
-; #  The interpreter knows only the things that are included in the knowledge-base. # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 (def debug (atom {:exit false
                   :trace false
-                  :info false
-                  :redo false
-                  :watch {:query false
-                          :stack false}}))
+                  :redo false}))
 
 
 (def user-terms
@@ -88,11 +78,11 @@
 
 (defn print-answer [main-pool work-pool]
   (let [not-nil (reduce (fn [pool var]
-                        (if (or (nil? (work-pool var))
-                                (set? (work-pool var)))
-                          (disj pool var)
-                          pool))
-                      main-pool main-pool)]
+                          (if (or (nil? (work-pool var))
+                                  (set? (work-pool var)))
+                            (disj pool var)
+                            pool))
+                        main-pool main-pool)]
 
     (if (empty? not-nil)
       (print-green "true")
@@ -442,7 +432,7 @@
 
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 ; #                                                                                 # ;
-; #  Interpreting a Prolog Conjunction.                                             # ;
+; #  Interpreting a Prolog Disjunction.                                             # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
@@ -453,9 +443,12 @@
   (let [goal (-> disj :terms first)
         rest-terms (-> disj :terms (subvec 1))
         [new-query new-pool] (replace query goal pool)
-        [check-query check-pool] (if (empty? rest-terms)
-                                   [query pool]
-                                   (replace query (->PrologDisjunction rest-terms) pool))
+
+        [check-query check-pool]
+        (if (empty? rest-terms)
+          [query pool]
+          (replace query (->PrologDisjunction rest-terms) pool))
+
         new-stack (if (empty? rest-terms)
                     stack
                     (conj stack [check-query check-pool 0]))]
@@ -519,7 +512,7 @@
 
 (defn ?-
   "Proves the query and prints the answer. If there are more than one
-  solutions, it waits for forse backtracking."
+  solutions, it waits for force backtracking."
   [input]
   (let [main-pool (get-vars input)]
     (loop [query input

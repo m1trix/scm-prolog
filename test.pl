@@ -10,3 +10,10 @@ insert(Element, [Head | List], [Head | NewList]) :- insert(Element, List, NewLis
 % nat(N) :- N is a natural nubmer.
 nat(0).
 nat(A) :- nat(B), A is B + 1.
+
+% remove(Element, List, NewList) :- NewList is the result of removing Element from List.
+remove(Element, [Element | List], List).
+remove(Element, [Head | List], [Head | NewList]) :- remove(Element, List, NewList).
+
+perm([], []).
+perm(List, [Head | Perm]) :- remove(Head, List, Rest), perm(Rest, Perm).

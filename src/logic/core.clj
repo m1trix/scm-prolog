@@ -16,17 +16,14 @@
     (when (:trace @debug)
       (print "[T] " ))
     (print "?- ")
-    ;;(print "\u001b[33m")
     (flush)
     (let [input (read-line)]
-     ;; (print "\u001b[0m")
       (try
         (let [terms (parse input)]
           (doseq [term terms]
             (?- term)))
         (catch Exception e
           (println-red (str "ERROR: " (.getMessage e)))))
-          ;;(.printStackTrace e)))
       (when (false? (:exit @debug))
         (recur))))
 
