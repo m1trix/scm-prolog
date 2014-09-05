@@ -139,7 +139,7 @@
     "is" [(create [:form "is" ["Left" "Right"] math-is])]
 
     "<" [(create [:form "'<'" ["Left" "Right"] math-less])]
-    "<=" [(create [:form "'<='" ["Left" "Right"] math-less-eq])]
+    "=<" [(create [:form "'=<'" ["Left" "Right"] math-less-eq])]
     ">" [(create [:form "'>'" ["Left" "Right"] math-more])]
     ">=" [(create [:form "'>='" ["Left" "Right"] math-more-eq])]
     "=\\=" [(create [:form "'=\\='" ["Left" "Right"] math-not-eq])]
