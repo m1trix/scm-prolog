@@ -6,6 +6,7 @@ member(Element, [_ | RestList]) :- member(Element, RestList).
 insert(Element, List, [Element | List]).
 insert(Element, [Head | List], [Head | NewList]) :- insert(Element, List, NewList).
 
-% perm(List, NewList) :- NewList is a permutation of the elements of List.
-perm([SingleElement], [SingleElement]).
-perm([FirstElement | RestList], NewList) :- perm(RestList, PermutatedList), insert(FirstElement, PermutatedList, NewList).
+
+% nat(N) :- N is a natural nubmer.
+nat(0).
+nat(A) :- nat(B), A is B + 1.

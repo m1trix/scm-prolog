@@ -29,7 +29,7 @@
   (atom {}))
 
 
-(def built-in-terms (atom @built-in-math))
+(def built-in-terms (atom built-in-math))
 
 
 (defn compile-file [[s] pool]
@@ -224,11 +224,12 @@
         all (@user-terms name)
         limit (count all)]
 
+    (if (nil? all)
+      (throw (Exception. (str "Unknown Term \""  name "\"."))))
     (when (:trace @debug) (trace-call fact pool depth))
     (loop [clauses (subvec all start)
            index start]
-      (if (or (nil? clauses)
-              (empty? clauses))
+      (if (empty? clauses)
         (do
           (when (:trace @debug) (trace-fail fact pool depth))
           [false {} stack])
