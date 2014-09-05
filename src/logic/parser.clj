@@ -313,6 +313,8 @@
 
      (= ";" (-> op :op :name)) (conj rest-obs (->PrologDisjunction terms))
 
+     (= "not" (-> op :op :name)) (conj rest-obs (->PrologNegation (first terms)))
+
      (= ":-" (-> op :op :name)) (conj rest-obs (->PrologRule (first terms) (second terms)))
 
      :else (conj rest-obs (make-fact (:op op) terms)))))

@@ -37,7 +37,8 @@
    "+"   (create-operator 500 "fx" "+")
    "-"   (create-operator 500 "fx" "-")
    "?"   (create-operator 500 "fx" "?")
-   "\\"  (create-operator 500 "fx" "\\")})
+   "\\"  (create-operator 500 "fx" "\\")
+   "not" (create-operator 1   "fx" "not")})
 
 
 (def built-in-binary

@@ -491,6 +491,32 @@
         [true new-pool new-stack]))))
 
 
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Negation.                                                # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
+
+(defmethod prove logic.term.PrologNegation
+  [neg query pool stack depth start]
+  (let [goal (-> neg :term)
+        [answer _ _] (interpret goal pool stack depth 0)]
+    (if answer
+      [false pool stack]
+      [true {} stack])))
+
+
+(defmethod replace logic.term.PrologNegation
+  [neg term pool]
+  [term pool])
+
+
+
 (defn ?-
   "Proves the query and prints the answer. If there are more than one
   solutions, it waits for forse backtracking."
