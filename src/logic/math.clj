@@ -47,13 +47,13 @@
   [(create (+ (:value left) (:value right))) pool])
 
 (defn math-plus [[term] pool]
-  [(create (+ (:value term)) pool)])
+  [(create (+ (:value term))) pool])
 
 (defn math-sub [[left right] pool]
   [(create (- (:value left) (:value right))) pool])
 
 (defn math-minus [[term] pool]
-  [(create (- (:value term)) pool)])
+  [(create (- (:value term))) pool])
 
 (defn math-mul [[left right] pool]
   [(create (* (:value left) (:value right))) pool])
