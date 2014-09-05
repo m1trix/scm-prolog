@@ -116,7 +116,6 @@
   in a stirng and returns ['<term>', <rest_of_string>] vector.
   If there is no Term, [\"\", <input_string>]."
   [input]
-  (println "Finding:" input)
   (let [[atom res] (find-atom input)]
     (if-not (= "" atom) [atom res]
 
@@ -159,7 +158,6 @@
   Returns: [[<elements>], <rest_of_string>]
   Returns: [nil, <input_string>], if there is no List."
   [input]
-  (println "Exctracing a list.")
   (if-not (= \[ (first input))
     [nil input]
     (if (= \] (second input))
