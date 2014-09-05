@@ -846,9 +846,8 @@
   [atom form pool]
   (if (and (= 0 (-> form :fact :args :args count))
            (unify atom (-> form :fact :atom) pool))
-    (do
-      ((:func form) (-> form :fact :args))
-      [true true pool])
+    (let [[new-term new-pool] ((:func form) (-> form :fact :args) pool)]
+      [true new-term new-pool])
     [false false pool]))
 
 
@@ -856,9 +855,10 @@
   [fact form pool]
   (let [[status new-fact new-pool] (resolve fact (:fact form) pool)]
     (if (true? status)
-      (do
-        ((:func form) (-> new-fact :args :args))
-        [true true pool])
+      (let [[new-term new-pool] ((:func form) (-> new-fact :args :args) pool)]
+        (if (false? new-term)
+          [false false pool]
+          [true new-term new-pool]))
       [false false pool])))
 
 

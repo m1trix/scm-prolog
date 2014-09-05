@@ -1,8 +1,9 @@
 (ns logic.interpreter
-  (:use [logic.util]
-        [logic.term]
-        [clojure.java.io]
-        [logic.parser])
+  (:use logic.util
+        logic.term
+        logic.math
+        clojure.java.io
+        logic.parser)
   (:refer-clojure :exclude [resolve replace]))
 
 
@@ -28,10 +29,10 @@
   (atom {}))
 
 
-(def built-in-terms (atom {}))
+(def built-in-terms (atom @built-in-math))
 
 
-(defn compile-file [[s]]
+(defn compile-file [[s] pool]
   (with-open [rdr (reader (clojure.string/replace (:string s) #"\"" ""))]
     (doseq [line (line-seq rdr)]
       (let [terms (parse line)]
@@ -48,13 +49,14 @@
              (swap! user-terms assoc name [term])
 
              :else
-             (swap! user-terms assoc name (conj user-defined term)))))))))
+             (swap! user-terms assoc name (conj user-defined term))))))))
+  [true pool])
 
 
-(reset! built-in-terms
-  {"trace" [(create [:form "trace" [] (fn [_] (swap! debug assoc :trace true))])]
-   "notrace" [(create [:form "notrace" [] (fn [_] (swap! debug assoc :trace false))])]
-   "halt" [(create [:form "halt" [] (fn [_] (swap! debug assoc :exit true))])]
+(swap! built-in-terms merge
+  {"trace" [(create [:form "trace" [] (fn [_ pool] (swap! debug assoc :trace true) [true pool])])]
+   "notrace" [(create [:form "notrace" [] (fn [_ pool] (swap! debug assoc :trace false) [true pool])])]
+   "halt" [(create [:form "halt" [] (fn [_ pool] (swap! debug assoc :exit true) [true pool])])]
    "compile" [(create [:form "compile" ["Filepath"] compile-file])]})
 
 
@@ -180,6 +182,32 @@
   [term pool])
 
 
+
+; =================================================================================== ;
+; =================================================================================== ;
+
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                                 # ;
+; #  Interpreting a Prolog Variable.                                                # ;
+; #                                                                                 # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+
+
+(defmethod prove logic.term.PrologVariable
+  [var query pool stack depth start]
+  (let [val (extract var pool)]
+    (if (or (nil? val)
+            (set? val))
+      (throw (Exception. (str "Cannot prove unbound Variable \"" (:name var) "\".")))
+      (let [[new-query new-pool] (replace query val pool)]
+        (prove val new-query new-pool stack depth start)))))
+
+
+(defmethod replace logic.term.PrologVariable
+  [var term pool]
+  [term pool])
+
+
 ; =================================================================================== ;
 ; =================================================================================== ;
 
@@ -197,30 +225,29 @@
         limit (count all)]
 
     (when (:trace @debug) (trace-call fact pool depth))
-    (if (= start -1)
-      [false {} stack]
-      (loop [clauses (subvec all start)
-             index start]
-        (if (empty? clauses)
-          (do
-            (when (:trace @debug) (trace-fail fact pool depth))
-            [false {} stack])
-          (do
-            (let [[target _] (generate (first clauses) {})
-                  [status new-term res-pool] (resolve fact target pool)]
-              (if (false? status)
-                (recur (rest clauses) (inc index))
-                (let [new-pool (evaluate-pool res-pool)
-                      new-stack (if (>= (inc index) limit)
-                                  stack
-                                  (conj stack [query pool (inc index)]))]
-                  (if (true? status)
-                    (do
-                      (when (:trace @debug) (trace-exit fact new-pool depth))
-                      [true new-pool new-stack])
-                    (let [[rep-query rep-pool]
-                          (replace query new-term new-pool)]
-                      (prove new-term rep-query rep-pool new-stack depth 0))))))))))))
+    (loop [clauses (subvec all start)
+           index start]
+      (if (or (nil? clauses)
+              (empty? clauses))
+        (do
+          (when (:trace @debug) (trace-fail fact pool depth))
+          [false {} stack])
+        (do
+          (let [[target _] (generate (first clauses) {})
+                [status new-term res-pool] (resolve fact target pool)]
+            (if (false? status)
+              (recur (rest clauses) (inc index))
+              (let [new-pool (evaluate-pool res-pool)
+                    new-stack (if (>= (inc index) limit)
+                                stack
+                                (conj stack [query pool (inc index)]))]
+                (if (true? status)
+                  (do
+                    (when (:trace @debug) (trace-exit fact new-pool depth))
+                    [true new-pool new-stack])
+                  (let [[rep-query rep-pool]
+                        (replace query new-term new-pool)]
+                    (prove new-term rep-query rep-pool new-stack depth 0)))))))))))
 
 
 ;; (defmethod prove logic.term.PrologFact

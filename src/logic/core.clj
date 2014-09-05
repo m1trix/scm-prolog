@@ -25,7 +25,8 @@
           (doseq [term terms]
             (?- term)))
         (catch Exception e
-          (println-red (str "ERROR: "(.getMessage e)))))
+          (println-red (str "ERROR: " (.getMessage e)))))
+          ;;(.printStackTrace e)))
       (when (false? (:exit @debug))
         (recur))))
 
