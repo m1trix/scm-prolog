@@ -26,7 +26,7 @@
   (let [name-x (re-find atom-name-with-no-qoutes-pattern (:name x))
         name-y (re-find atom-name-with-no-qoutes-pattern (:name y))]
     (if (= name-x name-y)
-      [(->PrologAtom [name-x]) pool]
+      [(->PrologAtom name-x) pool]
       [false pool])))
 
 

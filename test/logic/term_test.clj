@@ -16,7 +16,9 @@
     (is (= (unify-terms (create :atom "atom") (create :atom "atom") {}) [(create :atom "atom") {}]))
     (is (= (unify-terms (create :atom "'atom'") (create :atom "atom") {}) [(create :atom "atom") {}]))
     (is (= (unify-terms (create :atom "atom") (create :atom "'atom'") {}) [(create :atom "atom") {}]))
+    (is (= (unify-terms (create :atom "'atom'") (create :atom "'atom'") {}) [(create :atom "atom") {}]))
     (is (= (unify-terms (create :atom "atom") (create :atom "anotherAtom") {}) [false {}]))
     (is (= (unify-terms (create :atom "atom") (create :atom "'another atom'") {}) [false {}]))
-    (is (= (unify-terms (create :atom "'atom'") (create :atom "anotherAtom") {}) [false {}]))))
+    (is (= (unify-terms (create :atom "'atom'") (create :atom "anotherAtom") {}) [false {}]))
+    (is (= (unify-terms (create :atom "'atom'") (create :atom "'anotherAtom'") {}) [false {}]))))
 

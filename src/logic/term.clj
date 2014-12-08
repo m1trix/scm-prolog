@@ -3,11 +3,7 @@
 
 
 (defmulti to-string (fn [term _] (type term)))
-(defmulti unify-terms (fn [T1 T2 _] (type T1) (type T2)))
-
-
-(load "term/variable")
-(load "term/atom")
+(defmulti unify-terms (fn [T1 T2 _] [(type T1) (type T2)]))
 
 
 (defmethod to-string :default
@@ -18,6 +14,10 @@
 (defmethod unify-terms :default
   [_ _ pool]
   [false pool])
+
+
+(load "term/variable")
+(load "term/atom")
 
 
 (def create-mappings
