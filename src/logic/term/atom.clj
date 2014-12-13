@@ -1,15 +1,24 @@
-(defrecord PrologAtom [name])
-
-
 (def atom-name-pattern #"[a-z][a-zA-Z_]*|'[^']+'")
 (def atom-name-with-no-qoutes-pattern #"[^']+")
+
+
+(declare atom->string)
+(declare atom-unify)
+
+
+(defrecord PrologAtom [name]
+  IPrologTerm
+  (to-string [this pool] (atom->string this))
+  (unify [this other pool] (atom-unify this other pool))
+  (generate [this names] [this names]))
+
 
 (defn create-atom
   "Creates a PrologAtom."
   [[name]]
   (if (nil? (re-matches atom-name-pattern name))
     (throw (Exception. (format "Cannot create PrologAtom with name \"%s\"!" name)))
-    (->PrologAtom name)))
+    (PrologAtom. name)))
 
 
 (defmacro prolog-atom?
@@ -23,28 +32,28 @@
   when the quotes are removed."
   [x y pool]
   ;; Getting the unqoted names
-  (let [name-x (re-find atom-name-with-no-qoutes-pattern (:name x))
-        name-y (re-find atom-name-with-no-qoutes-pattern (:name y))]
+  (let [name-x (re-find atom-name-with-no-qoutes-pattern (. x name))
+        name-y (re-find atom-name-with-no-qoutes-pattern (. y name))]
     (if (= name-x name-y)
-      [(->PrologAtom name-x) pool]
+      [true pool]
       [false pool])))
 
 
-(defmethod unify-terms [PrologAtom PrologAtom]
-  [x y pool]
-  (unify-atoms x y pool))
+(defn atom->string
+  "Returns a string that holds the output form of the PrologAtom."
+  [atom]
+  (. atom name))
 
 
-(defmethod unify-terms [PrologVariable PrologAtom]
-  [var atom pool]
-  (unify-var-with-term var atom pool))
+(defn atom-unify
+  "Unifies a PrologAtom with a IPrologTerm inside the pool."
+  [atom term pool]
+  (cond
 
+   (prolog-atom? term)
+   (unify-atoms atom term pool)
 
-(defmethod unify-terms [PrologAtom PrologVariable]
-  [atom var pool]
-  (unify-var-with-term var atom pool))
+   (prolog-var? term)
+   (unify term atom pool)
 
-
-(defmethod to-string PrologAtom
-  [atom _]
-  (:name atom))
+   :else [false pool]))

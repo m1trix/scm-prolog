@@ -1,18 +1,27 @@
-(defrecord PrologVariable [name])
+(def var-name-regex #"[A-Z][A-Za-z0-9_]*")
+
+
+(declare var->string)
+(declare var-unify)
+(declare generate-var)
+
+
+(defrecord PrologVariable [#^String name]
+  IPrologTerm
+  (to-string [this pool] (var->string this pool))
+  (unify [this other pool] (var-unify this other pool))
+  (generate [this names] (generate-var this names)))
 
 
 (defmacro prolog-var? [term]
   `(= (type ~term) PrologVariable))
 
 
-(def var-name-regex #"[A-Z][A-Za-z0-9_]*")
-
-
 (defn create-var
   "Cretes an unbound PrologVariable."
   [[name]]
   (if (re-matches var-name-regex name)
-  (->PrologVariable name)
+    (PrologVariable. name)
     (throw (Exception. (format "Cannot create a PrologVariable with name \"%s\"!" name)))))
 
 
@@ -49,7 +58,7 @@
 (defn set-root
   "Gives a value to the root inside the pool."
   [root val pool]
-  [val (assoc pool root val)])
+  (assoc pool root val))
 
 
 (defn unify-var-with-term
@@ -57,8 +66,8 @@
   [var term pool]
   (let [[val new-pool] (get-val var pool)]
     (if (prolog-var? val)
-      (set-root val term new-pool)
-      (unify-terms val term new-pool))))
+      [true (set-root val term new-pool)]
+      (unify val term new-pool))))
 
 
 (defn unify-vars
@@ -70,17 +79,29 @@
     (cond
 
      (= val-x val-y)
-     [val-x new-pool]
+     [true new-pool]
 
      (prolog-var? val-y)
-     (set-root val-y val-x new-pool)
+     [true (set-root val-y val-x new-pool)]
 
      (prolog-var? val-x)
-     (set-root val-x var-y new-pool)
+     [true (set-root val-x var-y new-pool)]
 
-     :else (unify-terms val-x val-y new-pool))))
+     :else (unify val-x val-y new-pool))))
 
 
-(defmethod unify-terms [PrologVariable PrologVariable]
-  [var-x var-y pool]
-  (unify-vars var-x var-y pool))
+(defn var-unify
+  "Unifies a PrologVariable with a IPrologTerm inside the pool."
+  [var term pool]
+  (if (prolog-var? term)
+    (unify-vars var term pool)
+    (unify-var-with-term var term pool)))
+
+
+(defn var->string
+  "Returns a string that represents the output of the PrologVariable value."
+  [var pool]
+  (let [[val new-pool] (get-val var pool)]
+    (if (prolog-var? val)
+      (. val name)
+      (to-string val pool))))

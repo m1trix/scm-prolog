@@ -1,19 +1,11 @@
-(ns logic.term
-  (:require logic.util))
+(ns logic.term)
 
 
-(defmulti to-string (fn [term _] (type term)))
-(defmulti unify-terms (fn [T1 T2 _] [(type T1) (type T2)]))
-
-
-(defmethod to-string :default
-  [what _]
-  (str what))
-
-
-(defmethod unify-terms :default
-  [_ _ pool]
-  [false pool])
+(defprotocol IPrologTerm
+  (create [args])
+  (unify [this other pool])
+  (to-string [this pool])
+  (generate [this names]))
 
 
 (load "term/variable")
