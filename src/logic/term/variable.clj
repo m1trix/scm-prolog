@@ -105,3 +105,13 @@
     (if (prolog-var? val)
       (. val name)
       (to-string val pool))))
+
+
+
+(defn generate-var
+  [var names]
+  (let [name (names (:name var))]
+    (if-not (nil? name)
+      [(PrologVariable. name) names]
+      (let [gen-name (-> '_G gensym str)]
+        [(PrologVariable. gen-name) (assoc names (:name var) gen-name)]))))
