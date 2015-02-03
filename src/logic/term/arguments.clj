@@ -1,3 +1,4 @@
+(ns logic.term)
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
 ;;    PrologArgsList
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
@@ -10,7 +11,7 @@
 (declare generate-args)
 
 
-(defrecord PrologArgsList [args]
+(defrecord PrologArgsList [#^clojure.lang.PersistentList args]
   IPrologTerm
   (to-string [this pool] (args->string (:args this) pool))
   (unify [this other pool] (args-unify this other pool))
@@ -25,8 +26,8 @@
 
 (defn create-args-list
   "Creates new PrologArgsList."
-  [[terms]]
-    (PrologArgsList. terms))
+  [terms]
+    (PrologArgsList. (map create terms)))
 
 
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
@@ -56,24 +57,33 @@
         (.append ", ")
         (.append (.to-string elem pool)))))
 
+
 (defn args->string
   "Returns a string that represents the PrologArgsList."
   [args pool]
-  (-> (reduce (append-to-string-builder pool)
-              (create-string-builder (first args) pool)
-              (rest args))
-      (.append ")")
-      .toString))
+  (if (empty? args)
+    "()"
+    (-> (reduce (append-to-string-builder pool)
+                (create-string-builder (first args) pool)
+                (rest args))
+        (.append ")")
+        (.toString))))
+
+
+(defn generate-next
+  "Returns a single argument function, which receives
+  an IPrologTerm and generates new IPrologTerm."
+  [names]
+  (fn [term]
+    (let [[new-term new-names] (.generate term @names)]
+      (reset! names new-names)
+      new-term)))
 
 
 (defn generate-args
   [args names]
   (let [atom-names (atom names)]
-    (-> (map #(let [[new-term new-names]
-                     (.generate % @atom-names)]
-                 (reset! atom-names new-names)
-                 new-term)
-             args)
+    (-> (map (generate-next atom-names) args)
         (doall)
         (vector @atom-names))))
 
@@ -95,7 +105,7 @@
   "Unifies the next pair of elements."
   [[result pool] [left right]]
   (if-not result
-    false
+    [false pool]
     (.unify left right pool)))
 
 

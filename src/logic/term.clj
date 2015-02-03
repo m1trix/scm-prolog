@@ -9,30 +9,28 @@
 
 
 (load "term/variable")
-(load "term/atom")
-(load "term/arguments")
+(load "term/fact")
 
 
-(def create-mappings
-  {:var #(create-var %)
-   :atom #(create-atom %)
-   :args #(create-args-list %)})
+(defmulti create (fn [inp & _] (type inp)))
 
 
-(defn create
-  "Creates a new PrologTerm."
-  [type & args]
-  ((create-mappings type) args))
+(defmethod create String
+  [input]
+  (cond
+   (re-matches var-name-pattern input)
+   (PrologVariable. input)
 
+   (re-matches atom-name-pattern input)
+   (PrologAtom. input)
 
-(.unify (create :args (list (create :var "Y")
-                            (create :atom "asd")))
-        (create :args (list (create :var "X")
-                            (create :atom "asd")))
-        {})
+   :else
+   (throw (IllegalArgumentException.
+           (str "Cannot recognize a Term in \"" input "\"")))))
 
-(.generate (create :args (list (create :var "X")
-                               (create :var "Y")
-                               (create :var "X")
-                               (create :atom "asd")))
-           {})
+(defmethod create clojure.lang.PersistentVector
+  [[key & rest :as all]]
+  (cond
+
+   (= key :fact)
+   (create-fact rest)))

@@ -1,3 +1,5 @@
+(ns logic.term)
+
 (def atom-name-pattern #"[a-z][a-zA-Z_]*|'[^']+'")
 (def atom-name-with-no-qoutes-pattern #"[^']+")
 
@@ -13,18 +15,18 @@
   (generate [this names] [this names]))
 
 
-(defn create-atom
-  "Creates a PrologAtom."
-  [[name]]
-  (if (nil? (re-matches atom-name-pattern name))
-    (throw (Exception. (format "Cannot create PrologAtom with name \"%s\"!" name)))
-    (PrologAtom. name)))
-
-
 (defmacro prolog-atom?
   "Tells whether the term is an atom."
   [term]
   `(= (type ~term) PrologAtom))
+
+
+(defn create-atom
+  "Validates the names and creates an instance of PrologAtom."
+  [name]
+  (if (re-matches atom-name-pattern name)
+    (PrologAtom. name)
+    (throw (IllegalArgumentException. (str "Cannot create PrologAtom with name \"" name "\"")))))
 
 
 (defn unify-atoms

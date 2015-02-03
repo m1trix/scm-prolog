@@ -1,4 +1,4 @@
-(def var-name-regex #"[A-Z][A-Za-z0-9_]*")
+(def var-name-regex #"[A-Z][A-Za-z0-9_]*|[_]")
 
 
 (declare var->string)
