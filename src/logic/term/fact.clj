@@ -19,7 +19,7 @@
 
 
 (defmacro prolog-fact? [term]
-  `(= (type ~term) PrologFactor))
+  `(= (type ~term) PrologFact))
 
 
 (defn create-fact
@@ -35,3 +35,25 @@
       (.append (.to-string (:name fact)pool))
       (.append (.to-string (:args fact) pool))
       (.toString)))
+
+
+(defn unify-facts
+  [left right pool]
+  (if-not (-> (.unify (:name left)
+                      (:name right)
+                      pool)
+              (first))
+    [false pool]
+    (.unify (:args left)
+            (:args right)
+            pool)))
+
+
+(defn fact-unify
+  [fact term pool]
+  (cond
+
+   (prolog-fact? term)
+   (unify-facts term fact pool)
+
+   :else [false pool]))
