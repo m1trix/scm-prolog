@@ -85,6 +85,7 @@
   (let [atom-names (atom names)]
     (-> (map (generate-next atom-names) args)
         (doall)
+        (PrologArgsList.)
         (vector @atom-names))))
 
 

@@ -57,3 +57,11 @@
    (unify-facts term fact pool)
 
    :else [false pool]))
+
+
+(defn generate-fact
+  [fact names]
+  (let [[new-args new-names]
+        (.generate (:args fact) names)]
+    [(PrologFact. (:name fact) new-args)
+     new-names]))
