@@ -8,7 +8,6 @@
   (generate [this names]))
 
 
-(load "term/variable")
 (load "term/fact")
 
 

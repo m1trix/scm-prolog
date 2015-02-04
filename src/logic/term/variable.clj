@@ -1,3 +1,13 @@
+;;  +++++++++++++++++++++++++++++++++++++++++++++++
+;;    PrologVariable
+;;  +++++++++++++++++++++++++++++++++++++++++++++++
+;;  The PrologVarible is a single word consisted of
+;;  A-Z, a-z and underscore. It starts with a
+;;  capital letter.
+;;  +++++++++++++++++++++++++++++++++++++++++++++++
+(ns logic.term)
+
+
 (def var-name-regex #"[A-Z][A-Za-z0-9_]*|[_]")
 
 
