@@ -8,10 +8,13 @@
   (generate [this names]))
 
 
-(load "term/fact")
-
-
 (defmulti create (fn [inp & _] (type inp)))
+
+
+(load "term/variable")
+(load "term/atom")
+(load "term/fact")
+(load "term/rule")
 
 
 (defmethod create String
@@ -32,4 +35,7 @@
   (cond
 
    (= key :fact)
-   (create-fact rest)))
+   (create-fact rest)
+
+   (= key :rule)
+   (create-rule rest)))

@@ -1,10 +1,11 @@
-(ns logic.term)
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
 ;;    PrologArgsList
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
 ;;  The PrologArgsList represents a fixed size
 ;;  list of comma-separated IPrologTerms.
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
+(ns logic.term)
+
 
 (declare args->string)
 (declare args-unify)

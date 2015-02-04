@@ -23,7 +23,7 @@
 (declare atom-unify)
 
 
-(defrecord PrologAtom [name]
+(defrecord PrologAtom [#^String name]
   IPrologTerm
   (to-string [this pool] (atom->string this))
   (unify [this other pool] (atom-unify this other pool))

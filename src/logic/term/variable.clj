@@ -8,7 +8,7 @@
 (ns logic.term)
 
 
-(def var-name-regex #"[A-Z][A-Za-z0-9_]*|[_]")
+(def var-name-pattern #"[A-Z][A-Za-z0-9_]*|[_]")
 
 
 (declare var->string)
@@ -30,7 +30,7 @@
 (defn create-var
   "Cretes an unbound PrologVariable."
   [[name]]
-  (if (re-matches var-name-regex name)
+  (if (re-matches var-name-pattern name)
     (PrologVariable. name)
     (throw (Exception. (format "Cannot create a PrologVariable with name \"%s\"!" name)))))
 
