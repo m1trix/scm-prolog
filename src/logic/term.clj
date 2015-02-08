@@ -1,5 +1,10 @@
-(ns logic.term
-  (:use logic.util))
+(ns logic.term)
+
+
+(load "term/variable")
+(load "term/atom")
+(load "term/fact")
+(load "term/rule")
 
 
 (defprotocol IPrologTerm
@@ -8,13 +13,12 @@
   (generate [this names]))
 
 
+(defmacro prolog-term?
+  [elem]
+  `(= (type ~elem) IPrologTerm))
+
+
 (defmulti create (fn [inp & _] (type inp)))
-
-
-(load "term/variable")
-(load "term/atom")
-(load "term/fact")
-(load "term/rule")
 
 
 (defmethod create String
@@ -29,6 +33,7 @@
    :else
    (throw (IllegalArgumentException.
            (str "Cannot recognize a Term in \"" input "\"")))))
+
 
 (defmethod create clojure.lang.PersistentVector
   [[key & rest :as all]]

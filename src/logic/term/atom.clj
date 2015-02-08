@@ -9,10 +9,7 @@
 ;;  Then inside the qoutes all symbols may be used
 ;;  except single qoutes.
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
-(ns logic.term)
-
-
-(load "term/variable")
+(in-ns 'logic.term)
 
 
 (def atom-name-pattern #"[a-z][a-zA-Z_]*|'[^']+'")
@@ -25,15 +22,15 @@
 
 (defrecord PrologAtom [#^String name]
   IPrologTerm
-  (to-string [this pool] (atom->string this))
+  (to-string [this pool] (:name this))
   (unify [this other pool] (atom-unify this other pool))
   (generate [this names] [this names]))
 
 
-(defmacro prolog-atom?
+(defn prolog-atom?
   "Tells whether the term is an atom."
   [term]
-  `(= (type ~term) PrologAtom))
+  (instance? PrologAtom term))
 
 
 (defn create-atom
@@ -63,9 +60,7 @@
   ;; Getting the unqoted names
   (let [name-x (re-find atom-name-with-no-qoutes-pattern (. x name))
         name-y (re-find atom-name-with-no-qoutes-pattern (. y name))]
-    (if (= name-x name-y)
-      [true pool]
-      [false pool])))
+      [(= name-x name-y) pool]))
 
 
 (defn atom-unify
@@ -77,19 +72,6 @@
    (unify-atoms atom term pool)
 
    (prolog-var? term)
-   (unify term atom pool)
+   (.unify term atom pool)
 
    :else [false pool]))
-
-
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;    .to-string(PrologAtom, Map)
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;  A PrologAtom is displayed as its name.
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-
-
-(defn atom->string
-  "Returns a string that holds the output form of the PrologAtom."
-  [atom]
-  (. atom name))

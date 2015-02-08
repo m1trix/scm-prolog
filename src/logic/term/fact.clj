@@ -1,8 +1,4 @@
-(ns logic.term)
-
-
-(load "term/atom")
-(load "term/arguments")
+(in-ns 'logic.term)
 
 
 (declare fact->string)
@@ -10,7 +6,7 @@
 (declare generate-fact)
 
 
-(defrecord PrologFact [#^PrologAtom name
+(defrecord PrologFact [#^PrologAtom atom
                        #^PrologArgsList args]
   IPrologTerm
   (to-string [this pool] (fact->string this pool))
@@ -18,8 +14,8 @@
   (generate [this names] (generate-fact this names)))
 
 
-(defmacro prolog-fact? [term]
-  `(= (type ~term) PrologFact))
+(defn prolog-fact? [term]
+  (instance? PrologFact term))
 
 
 (defn create-fact
@@ -32,15 +28,15 @@
   "Returns a string that represents the output of the PrologFact."
   [fact pool]
   (-> (StringBuilder.)
-      (.append (.to-string (:name fact)pool))
+      (.append (.to-string (:atom fact)pool))
       (.append (.to-string (:args fact) pool))
       (.toString)))
 
 
 (defn unify-facts
   [left right pool]
-  (if-not (-> (.unify (:name left)
-                      (:name right)
+  (if-not (-> (.unify (:atom left)
+                      (:atom right)
                       pool)
               (first))
     [false pool]
@@ -63,5 +59,5 @@
   [fact names]
   (let [[new-args new-names]
         (.generate (:args fact) names)]
-    [(PrologFact. (:name fact) new-args)
+    [(PrologFact. (:atom fact) new-args)
      new-names]))

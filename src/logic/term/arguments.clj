@@ -4,7 +4,7 @@
 ;;  The PrologArgsList represents a fixed size
 ;;  list of comma-separated IPrologTerms.
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
-(ns logic.term)
+(in-ns 'logic.term)
 
 
 (declare args->string)
@@ -19,16 +19,16 @@
   (generate [this names] (generate-args (:args this) names)))
 
 
-(defmacro prolog-args-list?
+(defn prolog-args-list?
   "Tells whether the IPrologTerm is a PrologArgsList."
   [term]
-  `(= (type ~term) PrologArgsList))
+  (instance? PrologArgsList term))
 
 
 (defn create-args-list
   "Creates new PrologArgsList."
   [terms]
-    (PrologArgsList. (map create terms)))
+  (PrologArgsList. (map create terms)))
 
 
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
@@ -114,11 +114,17 @@
 (defn unify-arg-lists
   "Unifies two lists by unifying each pair of elements."
   [left right pool]
-  (if-not (= (count left)
-             (count right))
-    [false pool]
-    (->> (map #(vector %1 %2) left right)
-         (reduce unify-next [true pool]))))
+  (cond
+
+   (not= (count left) (count right))
+   [false pool]
+
+   (= 0 (count left))
+   [true pool]
+
+   :else
+   (->> (map #(vector %1 %2) left right)
+        (reduce unify-next [true pool]))))
 
 
 (defn args-unify

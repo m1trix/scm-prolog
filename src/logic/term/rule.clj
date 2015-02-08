@@ -1,7 +1,4 @@
-(ns logic.term)
-
-
-(load "term/fact")
+(in-ns 'logic.term)
 
 
 (declare rule->string)
@@ -16,9 +13,8 @@
   (generate [this names] (generate-rule this names)))
 
 
-(defmacro prolog-rule?
-  [term]
-  `(= (type ~term) PrologRule))
+(defn prolog-rule? [term]
+  (instance? PrologRule term))
 
 
 (defn create-rule
