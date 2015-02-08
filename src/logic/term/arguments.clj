@@ -40,32 +40,32 @@
 ;;  The function uses Java StringBuilder to build
 ;;  the String more effectivelly.
 ;;  +++++++++++++++++++++++++++++++++++++++++++++++
+(defn append-first
+  "Appends the first element of a sequence (if such exists)."
+  [builder elems env prefix]
+  (if (empty? elems)
+    builder
+    (-> builder
+        (.append prefix)
+        (.append (.to-string (first elems) env)))))
 
-(defn create-string-builder
-  "Creates Java StringBuilder and appends the element."
-  [elem pool]
-  (-> (StringBuilder.)
-      (.append "(")
-      (.append (.to-string elem pool))))
 
-
-(defn append-to-string-builder
+(defn append-next
   "Returns a two-arguments function that receives a StringBuilder and an IPrologTerm.
   When called, the function appends the string representation of the term to the builder."
-  [pool]
+  [pool prefix]
   (fn [builder elem]
     (-> builder
-        (.append ", ")
+        (.append prefix)
         (.append (.to-string elem pool)))))
 
 
 (defn args->string
   "Returns a string that represents the PrologArgsList."
-  [args pool]
-  (if (empty? args)
-    "()"
-    (-> (reduce (append-to-string-builder pool)
-                (create-string-builder (first args) pool)
+  [args env]
+  (let [builder (StringBuilder.)]
+    (-> (reduce (append-next env ", ")
+                (append-first builder args env "(")
                 (rest args))
         (.append ")")
         (.toString))))

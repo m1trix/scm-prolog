@@ -1,16 +1,17 @@
 (ns logic.term)
 
 
-(load "term/variable")
-(load "term/atom")
-(load "term/fact")
-(load "term/rule")
-
-
 (defprotocol IPrologTerm
   (unify [this other pool])
   (to-string [this pool])
   (generate [this names]))
+
+
+(load "term/variable")
+(load "term/atom")
+(load "term/list")
+(load "term/fact")
+(load "term/rule")
 
 
 (defmacro prolog-term?
@@ -43,4 +44,7 @@
    (create-fact rest)
 
    (= key :rule)
-   (create-rule rest)))
+   (create-rule rest)
+
+   :else
+   (create-list all)))

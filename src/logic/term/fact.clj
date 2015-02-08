@@ -1,6 +1,9 @@
 (in-ns 'logic.term)
 
 
+(load "term/arguments")
+
+
 (declare fact->string)
 (declare fact-unify)
 (declare generate-fact)

@@ -116,10 +116,10 @@
 (defn var->string
   "Returns a string that represents the output of the PrologVariable value."
   [var pool]
-  (let [[value new-pool] (get-val var pool)]
+  (let [[value _] (get-val var pool)]
     (if (prolog-var? value)
       (:name value)
-      (to-string value pool))))
+      (.to-string value pool))))
 
 
 (defn generate-var
