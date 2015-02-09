@@ -23,7 +23,7 @@
   (cond
 
    (empty? tail)
-   nil
+   '()
 
    (> 1 (count tail))
    (throw (IllegalArgumentException. (str "PrologList tail must be a single PrologTerm!")))
@@ -61,27 +61,15 @@
 (defn list->string
   [l env]
   (let [builder (StringBuilder.)
-        append-term #((append-next env ", ") builder %)
         append-tail #((append-next env " | ") builder %)]
     (append-first builder (:head l) env "[")
     (loop [head (-> l :head rest)
            tail (-> l :tail)]
-      (if (empty? head)
-        (cond
-
-         (nil? tail)
-         true
-
-         (prolog-list? tail)
-         (do
-           (append-first builder (:head tail) env ", ")
-           (recur (-> tail :head rest) (:tail tail)))
-
-         :else
-         (append-tail tail))
-
-        (do
-          (-> head first append-term)
-          (recur (rest head) tail))))
+      (reduce (append-next env ", ")
+              (append-first builder head env ", ")
+              (rest head))
+      (if (prolog-list? tail)
+        (recur (:head tail) (:tail tail))
+        (append-tail tail)))
     (.append builder "]")
     (.toString builder)))
