@@ -1,22 +1,21 @@
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;    PrologArgsList
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;  The PrologArgsList represents a fixed size
-;;  list of comma-separated IPrologTerms.
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
 (in-ns 'logic.term)
+
+
+(load "term/common")
 
 
 (declare args->string)
 (declare args-unify)
 (declare generate-args)
+(declare args-names)
 
 
 (defrecord PrologArgsList [#^clojure.lang.PersistentList args]
   IPrologTerm
-  (to-string [this pool] (args->string (:args this) pool))
-  (unify [this other pool] (args-unify this other pool))
-  (generate [this names] (generate-args (:args this) names)))
+  (to-string [this env] (args->string this env))
+  (unify [this other env] (args-unify this other env))
+  (generate [this names] (generate-args this names))
+  (names-set [this] (args-names this)))
 
 
 (defn prolog-args-list?
@@ -31,109 +30,50 @@
   (PrologArgsList. (map create terms)))
 
 
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;    args->string:
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;  The function produces a String that represents
-;;  the output format of a PrologArgsList.
-;;
-;;  The function uses Java StringBuilder to build
-;;  the String more effectivelly.
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-(defn append-first
-  "Appends the first element of a sequence (if such exists)."
-  [builder elems env prefix]
-  (if (empty? elems)
-    builder
-    (-> builder
-        (.append prefix)
-        (.append (.to-string (first elems) env)))))
-
-
-(defn append-next
-  "Returns a two-arguments function that receives a StringBuilder and an IPrologTerm.
-  When called, the function appends the string representation of the term to the builder."
-  [pool prefix]
-  (fn [builder elem]
-    (-> builder
-        (.append prefix)
-        (.append (.to-string elem pool)))))
-
-
 (defn args->string
-  "Returns a string that represents the PrologArgsList."
   [args env]
-  (let [builder (StringBuilder.)]
-    (-> (reduce (append-next env ", ")
-                (append-first builder args env "(")
-                (rest args))
-        (.append ")")
-        (.toString))))
-
-
-(defn generate-next
-  "Returns a single argument function, which receives
-  an IPrologTerm and generates new IPrologTerm."
-  [names]
-  (fn [term]
-    (let [[new-term new-names] (.generate term @names)]
-      (reset! names new-names)
-      new-term)))
+  (-> (StringBuilder. "(")
+      (append-coll (:args args) env ", ")
+      (.append ")")
+      (.toString)))
 
 
 (defn generate-args
-  [args names]
-  (let [atom-names (atom names)]
-    (-> (map (generate-next atom-names) args)
-        (doall)
-        (PrologArgsList.)
-        (vector @atom-names))))
+  [args pool]
+  (-> #(.generate % pool)
+      (map (:args args))
+      (PrologArgsList.)))
 
-
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;    args-unify
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;  PrologArgsList can be unified only with
-;;  PrologVariable or another PrologArgsList.
-;;
-;;  If the PrologVariable is not bound, it is bound
-;;  to the list, otherwise they not unify.
-;;
-;;  If the other IPrologTerm is PrologVariable,
-;;  they unify if each pair of thei elements unify.
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
 
 (defn unify-next
-  "Unifies the next pair of elements."
-  [[result pool] [left right]]
-  (if-not result
-    [false pool]
-    (.unify left right pool)))
+  [env]
+  (fn [res [x y]]
+    (and res
+         (.unify x y env))))
 
 
 (defn unify-arg-lists
   "Unifies two lists by unifying each pair of elements."
-  [left right pool]
-  (cond
-
-   (not= (count left) (count right))
-   [false pool]
-
-   (= 0 (count left))
-   [true pool]
-
-   :else
-   (->> (map #(vector %1 %2) left right)
-        (reduce unify-next [true pool]))))
+  [x y env]
+  (and (= (count (:args x))
+          (count (:args y)))
+       (->> (map vector (:args x) (:args y))
+            (reduce (unify-next env) true))))
 
 
 (defn args-unify
-  [args term pool]
+  [args term env]
   (cond
    (prolog-var? term)
-   (.unify term args pool)
+   (.unify term args env)
 
    (prolog-args-list? term)
-   (unify-arg-lists (:args args) (:args term) pool)
+   (unify-arg-lists args term env)
 
-   :else [false pool]))
+   :else false))
+
+
+(defn args-names
+  [args]
+  (->> (map #(.names-set %) (:args args))
+       (reduce union)))

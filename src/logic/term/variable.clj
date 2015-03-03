@@ -1,11 +1,5 @@
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;    PrologVariable
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
-;;  The PrologVarible is a single word consisted of
-;;  A-Z, a-z and underscore. It starts with a
-;;  capital letter.
-;;  +++++++++++++++++++++++++++++++++++++++++++++++
 (in-ns 'logic.term)
+(use 'logic.environment)
 
 
 (def var-name-pattern #"[A-Z][A-Za-z0-9_]*|[_]")
@@ -18,9 +12,10 @@
 
 (defrecord PrologVariable [#^String name]
   IPrologTerm
-  (to-string [this pool] (var->string this pool))
-  (unify [this other pool] (var-unify this other pool))
-  (generate [this names] (generate-var this names)))
+  (to-string [this env] (var->string this env))
+  (unify [this other env] (var-unify this other env))
+  (generate [this names] (generate-var this names))
+  (names-set [this] #{(:name this)}))
 
 
 (defn prolog-var? [term]
@@ -35,97 +30,72 @@
     (throw (Exception. (format "Cannot create a PrologVariable with name \"%s\"!" name)))))
 
 
-(defn get-root
-  "Returns the root variable of the current tree of bounds."
-  [var pool]
-  (let [value (pool var)]
+(defn var->string
+  [var env]
+  (let [value (get-value env (:name var))]
+    (if (nil? value)
+      (:name var)
+      (.to-string value env))))
+
+
+(defn bind-variables
+  [var-x var-y env]
+  (println "binding variables")
+  (let [val-x (get-value env (:name var-x))
+        val-y (get-value env (:name var-y))]
     (cond
+     (nil? val-x)
+     (do
+       (bind-names env (:name var-x) (:name var-y))
+       true)
 
-     (nil? value)
-     [var pool]
-
-     (prolog-var? value)
-     (let [[root new-pool] (get-root value pool)]
-       [root (assoc new-pool var root)])
+     (nil? val-y)
+     (do
+       (bind-names env (:name var-y) (:name var-x))
+       true)
 
      :else
-     [var pool])))
+     (.unify val-x val-y env))))
 
 
-(defn get-val
-  "Returns the value of the variable from the pool."
-  [var pool]
-  (let [[root new-pool] (get-root var pool)
-        value (new-pool root)]
-    (if (nil? value)
-      [root new-pool]
-      [value new-pool])))
-
-
-(defn get-two-vals
-  "Returns a vector of the two variable vals from the pool."
-  [var-x var-y pool]
-  (let [[val-x pool-x] (get-val var-x pool)
-        [val-y new-pool] (get-val var-y pool-x)]
-    [val-x val-y new-pool]))
-
-
-(defn set-root
-  "Gives a value to the root inside the pool."
-  [root value pool]
-  (assoc pool root value))
-
-
-(defn unify-var-with-term
-  "Unifies a variable with a term inside the pool."
-  [var term pool]
-  (let [[value new-pool] (get-val var pool)]
-    (if (prolog-var? value)
-      [true (set-root value term new-pool)]
-      (.unify value term new-pool))))
-
-
-(defn unify-vars
-  "Two variables unify if they bind together, one of them accepts the value
-  of the other, or if their values unify."
-  [var-x var-y pool]
-  (let [[val-x val-y new-pool]
-        (get-two-vals var-x var-y pool)]
-    (cond
-
-     (= val-x val-y)
-     [true new-pool]
-
-     (prolog-var? val-y)
-     [true (set-root val-y val-x new-pool)]
-
-     (prolog-var? val-x)
-     [true (set-root val-x var-y new-pool)]
-
-     :else (unify val-x val-y new-pool))))
+(defn unify-with-term
+  [var term env]
+  (let [val (get-value env (:name var))]
+    (if (nil? val)
+      (do
+        (bind-value env (:name var) term)
+        true)
+      (.unify val term env))))
 
 
 (defn var-unify
-  "Unifies a PrologVariable with a IPrologTerm inside the pool."
-  [var term pool]
+  [var term env]
   (if (prolog-var? term)
-    (unify-vars var term pool)
-    (unify-var-with-term var term pool)))
+    (bind-variables var term env)
+    (unify-with-term var term env)))
 
 
-(defn var->string
-  "Returns a string that represents the output of the PrologVariable value."
-  [var pool]
-  (let [[value _] (get-val var pool)]
-    (if (prolog-var? value)
-      (:name value)
-      (.to-string value pool))))
+(defn generate-name
+  ([] (-> '_G gensym str))
+  ([name env]
+   (let [new-name (generate-name)]
+     (bind-value env name new-name)
+     new-name)))
+
+
+(defn get-val
+  [var env]
+  (or (get-value env var)
+      var))
 
 
 (defn generate-var
-  [var names]
-  (let [name (names (:name var))]
-    (if-not (nil? name)
-      [(PrologVariable. name) names]
-      (let [gen-name (-> '_G gensym str)]
-        [(PrologVariable. gen-name) (assoc names (:name var) gen-name)]))))
+  "Generates a new PrologVariable. If the name of the variable has
+  a value inside the pool, that value is used. Otherwise a new
+  name is generated and stored in the pool."
+  [var pool]
+  (let [name (:name var)]
+    (PrologVariable.
+     (or (and (= "_" name) (generate-name))
+         (get-value pool name)
+         (generate-name name pool)))))

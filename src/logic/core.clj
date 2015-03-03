@@ -10,21 +10,19 @@
 (defn -main
   "Entry Point."
   [& args]
-  (println "\u001b[33mWellcome to SCM-Prolog! Have fun :) \u001b[0m \n")
+  (println-color "Wellcome to SCM-Prolog! Have fun :)\n" color-yellow)
 
   (loop []
-    (when (:trace @debug)
-      (print "[T] " ))
     (print "?- ")
     (flush)
     (let [input (read-line)]
       (try
         (let [terms (parse input)]
           (doseq [term terms]
-            (?- term)))
+            (interactive-prove term)))
         (catch Exception e
-          (println-red (str "ERROR: " (.getMessage e)))))
-      (when (false? (:exit @debug))
-        (recur))))
+          (println-color (str "ERROR: " (.getMessage e))
+                         color-red)))
+      (recur)))
 
-  (println "\u001b[33mHope to see you again soon! \u001b[0m \n"))
+  (println-color "Hope to see you again soon!\n" color-yellow))

@@ -12,9 +12,10 @@
 (defrecord PrologFact [#^PrologAtom atom
                        #^PrologArgsList args]
   IPrologTerm
-  (to-string [this pool] (fact->string this pool))
-  (unify [this other pool] (fact-unify this other pool))
-  (generate [this names] (generate-fact this names)))
+  (to-string [this env] (fact->string this env))
+  (unify [this other env] (fact-unify this other env))
+  (generate [this names] (generate-fact this names))
+  (names-set [this] (-> this :args .names-set)))
 
 
 (defn prolog-fact? [term]
@@ -22,45 +23,45 @@
 
 
 (defn create-fact
-  [[name args]]
+  [name args]
   (PrologFact. (create-atom name)
                (create-args-list args)))
 
 
 (defn fact->string
-  "Returns a string that represents the output of the PrologFact."
-  [fact pool]
+  "Returns the string representation of the PrologFact."
+  [fact env]
   (-> (StringBuilder.)
-      (.append (.to-string (:atom fact)pool))
-      (.append (.to-string (:args fact) pool))
+      (.append (.to-string (:atom fact) env))
+      (.append (.to-string (:args fact) env))
       (.toString)))
 
 
 (defn unify-facts
-  [left right pool]
-  (if-not (-> (.unify (:atom left)
-                      (:atom right)
-                      pool)
-              (first))
-    [false pool]
-    (.unify (:args left)
-            (:args right)
-            pool)))
+  "Two facts unify if their names unify and their arguments unify."
+  [left right env]
+  (and (.unify (:atom left)
+               (:atom right)
+               env)
+       (.unify (:args left)
+               (:args right)
+               env)))
 
 
 (defn fact-unify
-  [fact term pool]
+  [fact term env]
   (cond
 
    (prolog-fact? term)
-   (unify-facts term fact pool)
+   (unify-facts term fact env)
 
-   :else [false pool]))
+   (prolog-formula? term)
+   (.unify term fact env)
+
+   :else false))
 
 
 (defn generate-fact
-  [fact names]
-  (let [[new-args new-names]
-        (.generate (:args fact) names)]
-    [(PrologFact. (:atom fact) new-args)
-     new-names]))
+  [fact pool]
+  (PrologFact. (:atom fact)
+               (.generate (:args fact) pool)))

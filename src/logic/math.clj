@@ -17,11 +17,12 @@
 
 (defmethod calculate logic.term.PrologVariable
   [var pool]
-  (let [val (extract var pool)]
+  (let [val (get-val var pool)]
     (if (or (set? val)
             (nil? val))
       (throw (Exception. (str "Cannot evaluate unbound Variable \"" (:name var) "\".")))
       (calculate val pool))))
+
 
 (defmethod calculate logic.term.PrologFact
   [fact pool]
@@ -34,7 +35,7 @@
           (throw (Exception. (str "No operator matches \"" name "\".")))
           (let [form (first all)
                 new-fact (->PrologFact (:atom fact)
-                                       (->PrologArguments (mapv #(calculate % pool)
+                                       (->PrologArgsList (mapv #(calculate % pool)
                                                                 (-> fact :args :args))))
                 [status new-term _] (resolve new-fact form pool)]
             (if (true? status)
@@ -77,7 +78,7 @@
    (let [[answer _] (math-unify [left (calculate right pool)] pool)]
      [answer pool])
 
-   (prolog-variable? left)
+   (prolog-var? left)
    (unify left (calculate right pool) pool)
 
    :else
@@ -144,4 +145,3 @@
     ">=" [(create [:form "'>='" ["Left" "Right"] math-more-eq])]
     "=\\=" [(create [:form "'=\\='" ["Left" "Right"] math-not-eq])]
     "=:=" [(create [:form "'=:='" ["Left" "Right"] math-eq])]})
-

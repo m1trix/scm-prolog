@@ -6,7 +6,8 @@
 ;;
 (ns logic.parser
   (:use [logic.term]
-        [logic.operator])
+        [logic.operator]
+        [logic.environment])
   (:refer-clojure :exclude [resolve]))
 
 
@@ -223,7 +224,7 @@
        (= \) (first text))
        (if check-arg
          (throw (Exception. (str "Missing argument: \"" (last args) ", \" (here) .")))
-         [(create-arguments args) (subs text 1)])
+         [(create-args-list args) (subs text 1)])
 
        (= \[ (first text))
        (if (false? check-arg)
@@ -333,10 +334,6 @@
   (let [index (- (count obs) (:arity op))
         terms (subvec obs index)
         rest-obs (subvec obs 0 index)]
-
-;;     DEBUG:
-;;       (println "Executing:" (-> op :op :name))
-
     (cond
 
      (= "," (-> op :op :name))
@@ -363,10 +360,7 @@
   (loop [ops in-ops
          obs in-obs]
     (if (empty? ops)
-      (do
-;;         DEBUG:
-;;           (println "All operations executed.")
-        [[] obs])
+      [[] obs]
       (recur (pop ops)
              (execute (peek ops) obs)))))
 
@@ -440,22 +434,12 @@
          obs []
          result []
          expecting-unary true]
-
-;;   DEBUG:
-;;     (print ops " ")
-;;     (print "[ ")
-;;     (doseq [x obs] (print (output x {}) ""))
-;;     (println "]")
-;;     (println "Text:" text)
-
     (cond
 
      (or (empty? text)
          (= \% (first text)))
      (if (empty? obs)
-       (do
-;;          (doseq [x result] (println (output x {})))
-         result)
+       result
        (throw (Exception. "Missing '.'")))
 
      (= \space (first text))
@@ -465,7 +449,7 @@
      (let [[new-ops new-obs] (execute-all ops obs)]
        (if (or (not (empty? new-ops))
                (next new-obs))
-         (throw (Exception. (str "Missing operator before " (output (peek new-obs) {}) ".")))
+         (throw (Exception. (str "Missing operator before " (.to-string (peek new-obs) (create-env)) ".")))
          (recur (subs text 1) [] [] (conj result (peek new-obs)) true)))
 
      (= \( (first text))

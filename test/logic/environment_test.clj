@@ -3,7 +3,7 @@
         clojure.test))
 
 
-(deftest environment-functions-test
+(deftest environment-test
 
   (testing "Binding names"
     (let [env (create-env)]
