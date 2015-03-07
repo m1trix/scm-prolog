@@ -8,7 +8,7 @@
 (defprotocol IPrologTerm
   (unify [this other pool])
   (to-string [this pool])
-  (generate [this names])
+  (generate [this] [this names] "Creates a clone instance of the IPrologTerm, where all PrologVariables have newly generated names.")
   (names-set [this]))
 
 

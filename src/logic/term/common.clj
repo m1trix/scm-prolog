@@ -2,11 +2,12 @@
 
 
 (defn append-initial
-  [builder elems env]
-  (if (empty? elems)
+  [builder coll env]
+  (if (empty? coll)
     builder
     (.append builder
-             (.to-string (first elems) env))))
+             (.to-string (first coll)
+                         env))))
 
 
 (defn append-next

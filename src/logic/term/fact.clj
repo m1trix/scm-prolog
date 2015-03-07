@@ -1,7 +1,7 @@
 (in-ns 'logic.term)
 
 
-(load "term/arguments")
+(load "term/tuple")
 
 
 (declare fact->string)
@@ -10,7 +10,7 @@
 
 
 (defrecord PrologFact [#^PrologAtom atom
-                       #^PrologArgsList args]
+                       #^PrologTuple args]
   IPrologTerm
   (to-string [this env] (fact->string this env))
   (unify [this other env] (fact-unify this other env))

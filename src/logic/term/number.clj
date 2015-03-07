@@ -24,8 +24,6 @@
 
 (defn number-unify
   [number term env]
-
-  (if (prolog-number? term)
-    (= (:number number) (:number term)))
-
-  :else false)
+  (and (prolog-number? term)
+       (= (:number number)
+          (:number term))))
