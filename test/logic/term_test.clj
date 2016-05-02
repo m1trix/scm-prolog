@@ -20,14 +20,21 @@
                   (env-set "Variable" "RANDOM"))]
       (is (not= (var-create "_")
                 (-> (var-create "_")
-                    (.generate env))))
+                    (.generate env)
+                    first)))
       (is (= (var-create "RANDOM")
              (-> (var-create "Variable")
-                 (.generate env))))
+                 (.generate env)
+                 first)))
       (is (not= (var-create "RANDOM")
                 (-> (var-create "V")
-                    (.generate env))))
-      (is (= 2 (count @env)))))
+                    (.generate env)
+                    first)))
+      (is (= 2
+          (-> (var-create "V")
+              (.generate env)
+              second
+              count)))))
 
   (testing "#to-string"
     (is (= "Variable"
@@ -36,23 +43,34 @@
 
   (testing "#unify"
     (let [env (env-create)]
-      (is (= true
-             (.unify (var-create "X")
-                     (var-create "Y")
-                     env)))
-      (is (env-bound? env "X" "Y"))
+      (is (true?
+          (->> env
+              (.unify (var-create "X")
+                      (var-create "Y"))
+              first)))
+      (is (-> (.unify (var-create "X")
+                      (var-create "Y")
+                      env)
+              second
+              (env-bound? "X" "Y")))
+      (let [env (-> env
+                    (env-bind "X" "Y")
+                    (env-set "X" 42))]
+        (is (= 42 (env-get env "Y")))
+        (is (true?
+            (->> env
+                 (.unify (var-create "Z") 
+                         (var-create "X"))
+                 first)))
 
-      (env-set env "X" 42)
-      (is (= 42
-             (env-get env "Y")))
-
-      (is (= true
-             (.unify (var-create "Z") 
-                     (var-create "X")
-                     env)))
-      (is (= 42 (env-get env "Z")))
-
-      (is (= true
-             (.unify (var-create "X")
-                     (var-create "V")
-                     env))))))
+        (is (= 42
+               (-> (.unify (var-create "Z")
+                           (var-create "X")
+                           env)
+                   second
+                   (env-get "Z"))))
+        (is (true?
+            (->> env
+                 (.unify (var-create "X")
+                         (var-create "V"))
+                 first)))))))

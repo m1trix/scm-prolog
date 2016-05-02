@@ -80,15 +80,16 @@
         pool-name (env-get pool name)]
     (cond
       (= "_" name)
-      (->Variable new-name)
+      [(->Variable new-name)
+       pool]
 
       (nil? pool-name)
-      (do
-        (env-set pool name new-name)
-        (->Variable new-name))
+      [(->Variable new-name)
+       (env-set pool name new-name)]
 
       :else
-      (->Variable pool-name))))
+      [(->Variable pool-name)
+       pool])))
 
 
 (defn- var-bind
@@ -100,13 +101,13 @@
         (env-get env (:name right))]
     (cond
       (nil? left-value)
-      (env-bind env
-                (:name left)
-                (:name right))
+      [true (env-bind env
+                     (:name left)
+                     (:name right))]
       (nil? right-value)
-      (env-bind env
-                (:name right)
-                (:name left))
+      [true (env-bind env
+                      (:name right)
+                      (:name left))]
       :else
       (unify left-value
              right-value
@@ -116,7 +117,5 @@
 (defn var-unify
   [left right env]
   (if-not (var? right)
-    false
-    (do
-      (var-bind left right env)
-      true)))
+    [false env]
+    (var-bind left right env)))

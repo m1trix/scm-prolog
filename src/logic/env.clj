@@ -1,4 +1,5 @@
-(ns logic.env)
+(ns logic.env
+  (:use clojure.pprint))
 
 
 (defrecord EnvNode [parent value])
@@ -7,47 +8,51 @@
 (defn env-create
   "Creates an empty environment"
   []
-  (atom {}))
-
-
-(defn env-clone
-  "Creates a copy of the given environment"
-  [env]
-  (atom @env))
+  {:names {}
+   :values {}})
 
 
 (defn- env-assoc-parent
-  "Changes the name's parent if it's not the name itself."
   [env name parent]
-  (when-not (= name parent)
-    (swap! env assoc name (->EnvNode parent nil)))
-  env)
+  (if (= name parent)
+    env
+    {:values (:values env)
+     :names (assoc (:names env)
+                   name
+                   parent)}))
 
 
 (defn- env-assoc-value
   "Changes the value associated with the given name."
   [env name value]
-  (swap! env assoc name (->EnvNode nil value))
-  env)
+  {:names (:names env)
+   :values (assoc (:values env)
+                  name 
+                  value)})
 
 
 (defn env-get-root
+  "Returns the root name from the current binding tree."
   [env name]
-  (let [parent (-> name (@env) :parent)]
+  (let [parent ((env :names) name)]
     (if (nil? parent)
-      name
-      (let [root (env-get-root env parent)]
-        (env-assoc-parent env name root)
-        root))))
+      [name env]
+      (let [[root env]
+            (env-get-root env parent)]
+        [root
+         (env-assoc-parent
+           env
+           name
+           root)]))))
 
 
 (defn env-bind
-  "Binds the two names together - both will be associated to the same value."
+  "Adds the left name to the binding tree of the right name."
   [env left right]
-  (let [left-root
+  (let [[left-root env]
         (env-get-root env left)
 
-        right-root
+        [right-root env]
         (env-get-root env right)]
     (env-assoc-parent
       env
@@ -58,20 +63,22 @@
 (defn env-bound?
   "Tells whether the two names are bound together or not."
   [env left right]
-  (= (env-get-root env left)
-     (env-get-root env right)))
+  (= (first (env-get-root env left))
+     (first (env-get-root env right))))
 
 
 (defn env-get
   "Returns the value associated to the given name."
   [env var]
-  (let [root (env-get-root env var)]
-    (-> root (@env) :value)))
+  (let [[root _]
+        (env-get-root env var)]
+    ((env :values) root)))
 
 
 (defn env-set
   "Associates the value to the given name and all names bound to it."
   [env var val]
-  (let [root (env-get-root env var)]
-    (env-assoc-value env root val)
-    (env-assoc-parent env var root)))
+  (let [[root env] (env-get-root env var)]
+    (-> env
+        (env-assoc-value root val)
+        (env-assoc-parent var root))))
