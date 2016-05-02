@@ -14,7 +14,7 @@
 
 (deftest test-environment
 
-  (testing "Getting & setting values"
+  (testing "#env-get & #env-set"
     (is (nil? (-> (env-create)
                   (env-get "X"))))
     (is (= :expected
@@ -27,7 +27,7 @@
                 (env-set "X" :x)
                 (env-set "Y" :y)))))
 
-  (testing "Binding names"
+  (testing "#env-bind"
     (is (= {"X" (parent "Y")}
            @(-> (env-create)
                 (env-bind "X" "Y"))))
@@ -60,34 +60,3 @@
               "V" (parent "W")
               "T" (parent "W")
               "W" (value :value)})))))
-
-; (deftest test-env
-
-;   (testing "Binding names"
-;     (is (= {"X" (parent "Y")}
-;            @(-> (env-create)
-;               (env-bind "X" "Y"))))
-;     (is (= {"X" (parent "Y")
-;             "Y" (parent "T")
-;             "V" (parent "T")
-;             "W" (parent "T")}
-;            @(-> (env-create)
-;               (env-bind "X" "Y")
-;               (env-bind "V" "W")
-;               (env-bind "W" "T")
-;               (env-bind "X" "V")))))
-
-;   (testing "Setting & getting values"
-;     (is (= {"X" (value 44)}
-;            @(-> (env-create)
-;               (env-set "X" 44))))
-;     (is (= {"X" (parent "Y")
-;             "Y" (value 44)}
-;            @(-> (env-create)
-;               (env-bind "X" "Y")
-;               (env-set "X" 44))))
-;     (is (= :test
-;            @(-> (env-create)
-;               (env-bind "X" "Y")
-;               (env-set "Y" :test)
-;               (env-get "X"))))))

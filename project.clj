@@ -1,4 +1,4 @@
-(defproject logical-programming "0.1.1-SNAPSHOT"
+(defproject logical-programming "0.1.2-SNAPSHOT"
   :description "Prolog implementation & library for Clojure"
   :url "https://github.com/m1trix/scm-prolog"
   :license {:name "Eclipse Public License"

@@ -64,7 +64,7 @@
 
 
 (defn math-unify [[left right] pool]
-  (let [[new-term new-pool] (unify left right pool)]
+  (let [[new-term new-pool] (obsolete-unify left right pool)]
     (if (false? new-term)
       [false pool]
       [new-term new-pool])))
@@ -78,7 +78,7 @@
      [answer pool])
 
    (prolog-variable? left)
-   (unify left (calculate right pool) pool)
+   (obsolete-unify left (calculate right pool) pool)
 
    :else
    [false pool]))

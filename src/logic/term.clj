@@ -1,12 +1,22 @@
 (ns logic.term
-  (:use [logic.util])
+  (:use logic.util
+        logic.env)
   (:require [clojure.set])
   (:refer-clojure :exclude [resolve]))
 
 
+(defprotocol ITerm
+  (to-string [this env])
+  (generate [this pool])
+  (unify [this other env]))
+
+
+(load "term/variable")
+
+
 (defmulti output (fn [term _] (type term)))
-(defmulti unify (fn [x y _] [(type x) (type y)]))
-(defmulti generate (fn [term _] (type term)))
+(defmulti obsolete-unify (fn [x y _] [(type x) (type y)]))
+(defmulti obsolete-generate (fn [term _] (type term)))
 (defmulti get-vars type)
 (defmulti reshape (fn [term _] (type term)))
 (defmulti create (fn [inp & rest] (type inp)))
@@ -14,7 +24,7 @@
 (defmulti get-name (fn [term] (type term)))
 
 
-(defmethod unify :default
+(defmethod obsolete-unify :default
   [_ _ pool]
   [false pool])
 
@@ -24,7 +34,7 @@
   [term pool])
 
 
-(defmethod generate :default
+(defmethod obsolete-generate :default
   [term names]
   [term names])
 
@@ -89,7 +99,7 @@
      :else #{})))
 
 
-(defmethod generate PrologVariable
+(defmethod obsolete-generate PrologVariable
   [var names]
   (let [name (:name var)
         new-name (-> '_G gensym str)
@@ -137,7 +147,7 @@
          (reduce #(assoc %1 %2 term) (dissoc pool real-var))
          (#(assoc % (extract var pool) term))
          (vector term))
-        (unify real-var term pool)))))
+        (obsolete-unify real-var term pool)))))
 
 
 (defn bind
@@ -155,7 +165,7 @@
                var-y var-x)])))
 
 
-(defmethod unify [PrologVariable PrologVariable]
+(defmethod obsolete-unify [PrologVariable PrologVariable]
   ;; Two variables unify by agreeing to bind to each together.
   ;; That means that whenever one of them is evaluated,
   ;; the other one is also evaluated.
@@ -175,7 +185,7 @@
      (evaluate val-y val-x pool)
 
      :else
-     (unify val-x val-y pool))))
+     (obsolete-unify val-x val-y pool))))
 
 
 (defmethod reshape PrologVariable
@@ -210,7 +220,7 @@
   (same? (type atom) logic.term.PrologAtom))
 
 
-(defmethod unify [PrologAtom PrologAtom]
+(defmethod obsolete-unify [PrologAtom PrologAtom]
   ;; Two atoms unify if they have exactly the same names,
   ;; or one is the same placed in ' '.
   [x y pool]
@@ -223,11 +233,11 @@
         [(create (str \' name-x \')) pool])
       [false pool])))
 
-(defmethod unify [PrologAtom PrologVariable]
+(defmethod obsolete-unify [PrologAtom PrologVariable]
   [atom var pool]
   (evaluate var atom pool))
 
-(defmethod unify [PrologVariable PrologAtom]
+(defmethod obsolete-unify [PrologVariable PrologAtom]
   [var atom pool]
   (evaluate var atom pool))
 
@@ -266,7 +276,7 @@
          logic.term.PrologNumber))
 
 
-(defmethod unify [PrologNumber PrologNumber]
+(defmethod obsolete-unify [PrologNumber PrologNumber]
   ;; Two Numbers unify if their values are equal.
   [x y pool]
   (if (= (:value x)
@@ -274,11 +284,11 @@
     [x pool]
     [false pool]))
 
-(defmethod unify [PrologNumber PrologVariable]
+(defmethod obsolete-unify [PrologNumber PrologVariable]
   [num var pool]
   (evaluate var num pool))
 
-(defmethod unify [PrologVariable PrologNumber]
+(defmethod obsolete-unify [PrologVariable PrologNumber]
   [var num pool]
   (evaluate var num pool))
 
@@ -306,7 +316,7 @@
          logic.term.PrologString))
 
 
-(defmethod unify [PrologString PrologString]
+(defmethod obsolete-unify [PrologString PrologString]
   ;; Two Strings unify if their characters are exactly the same.
   [x y pool]
   (if (= (:string x)
@@ -314,11 +324,11 @@
     [x pool]
     [false pool]))
 
-(defmethod unify [PrologString PrologVariable]
+(defmethod obsolete-unify [PrologString PrologVariable]
   [str var pool]
   (evaluate var str pool))
 
-(defmethod unify [PrologVariable PrologString]
+(defmethod obsolete-unify [PrologVariable PrologString]
   [var str pool]
   (evaluate var str pool))
 
@@ -355,7 +365,7 @@
      logic.term.PrologArguments))
 
 
-(defmethod unify [PrologArguments PrologArguments]
+(defmethod obsolete-unify [PrologArguments PrologArguments]
   [args-x args-y in-pool]
   (if (different? (count (:args args-x))
                   (count (:args args-y)))
@@ -367,7 +377,7 @@
       (if (empty? all)
         [(PrologArguments. args) pool]
         (let [[term-x term-y] (first all)
-              [new-term new-pool] (unify term-x term-y pool)]
+              [new-term new-pool] (obsolete-unify term-x term-y pool)]
           (if (false? new-term)
             [false pool]
             (recur (conj args new-term)
@@ -375,15 +385,15 @@
                    new-pool)))))))
 
 
-(defmethod generate PrologArguments
+(defmethod obsolete-generate PrologArguments
   ;; Returns a new Prolog Arguments list
-  ;; with new names generated for the unique Variables.
+  ;; with new names obsolete-generated for the unique Variables.
   [args names]
     (let [[new-args new-names]
         (reduce
          (fn [[res names] term]
            (let [[new-term new-names]
-                 (generate term names)]
+                 (obsolete-generate term names)]
              [(conj res new-term) new-names]))
          [[] names] (:args args))]
     [(PrologArguments. new-args) new-names]))
@@ -485,7 +495,7 @@
      :else list)))
 
 
-(defmethod unify [PrologList PrologList]
+(defmethod obsolete-unify [PrologList PrologList]
   ;; Two lists unify if their initial elements unify
   ;; and the lists which remain after removing both initial elements unify.
   [list-x list-y in-pool]
@@ -507,7 +517,7 @@
      (if (or (empty? head-x)
              (empty? head-y))
        (let [[new-tail new-pool]
-             (unify
+             (obsolete-unify
               (reconstruct-list
                (PrologList. head-x (:tail list-x))
                pool)
@@ -519,7 +529,7 @@
            [false in-pool]
            [(reconstruct-list (PrologList. new-head new-tail) new-pool)
             new-pool]))
-       (let [[new-term new-pool] (unify (first head-x) (first head-y) pool)]
+       (let [[new-term new-pool] (obsolete-unify (first head-x) (first head-y) pool)]
          (if (false? new-term)
            [false in-pool]
            (recur (rest head-x)
@@ -527,11 +537,11 @@
                   (conj new-head new-term)
                   new-pool)))))))
 
-(defmethod unify [PrologList PrologVariable]
+(defmethod obsolete-unify [PrologList PrologVariable]
   [list var pool]
   (evaluate var list pool))
 
-(defmethod unify [PrologVariable PrologList]
+(defmethod obsolete-unify [PrologVariable PrologList]
   [var list pool]
   (evaluate var list pool))
 
@@ -545,18 +555,18 @@
           (:head list)))
 
 
-(defmethod generate PrologList
+(defmethod obsolete-generate PrologList
   [list names]
   (let [[new-head head-names]
         (->
          (PrologArguments. (:head list))
-         (generate names)
+         (obsolete-generate names)
          (#(vector (:args (first %))
                    (second %))))]
     (if (= [] (:tail list))
       [(PrologList. new-head [])
        head-names]
-      (let [[new-tail tail-names] (generate (:tail list)
+      (let [[new-tail tail-names] (obsolete-generate (:tail list)
                                             head-names)]
         [(PrologList. new-head new-tail)
          tail-names]))))
@@ -617,32 +627,32 @@
   (-> fact :atom :name))
 
 
-(defmethod unify [PrologFact PrologFact]
+(defmethod obsolete-unify [PrologFact PrologFact]
   [fact-x fact-y pool]
-  (if (-> (unify (:atom fact-x) (:atom fact-y) pool)
+  (if (-> (obsolete-unify (:atom fact-x) (:atom fact-y) pool)
           (first)
           (false?))
     [false pool]
     (let [[new-args new-pool]
-          (unify (:args fact-x) (:args fact-y) pool)]
+          (obsolete-unify (:args fact-x) (:args fact-y) pool)]
 
       (if (false? new-args)
         [false pool]
         [(PrologFact. (:atom fact-x) new-args)
          new-pool]))))
 
-(defmethod unify [PrologFact PrologVariable]
+(defmethod obsolete-unify [PrologFact PrologVariable]
   [fact var pool]
   (evaluate var fact pool))
 
-(defmethod unify [PrologVariable PrologFact]
+(defmethod obsolete-unify [PrologVariable PrologFact]
   [var fact pool]
   (evaluate var fact pool))
 
 
-(defmethod generate PrologFact
+(defmethod obsolete-generate PrologFact
   [fact names]
-  (-> (generate (:args fact) names)
+  (-> (obsolete-generate (:args fact) names)
       (#(assoc % 0 (PrologFact. (:atom fact) (first %))))))
 
 
@@ -666,7 +676,7 @@
 (defmethod resolve [PrologFact PrologFact]
   [fact-x fact-y pool]
   (let [[new-fact new-pool]
-        (unify fact-x fact-y pool)]
+        (obsolete-unify fact-x fact-y pool)]
 
     (if (false? new-fact)
       [false false pool]
@@ -707,9 +717,9 @@
           (:terms disj)))
 
 
-(defmethod generate PrologDisjunction
+(defmethod obsolete-generate PrologDisjunction
   [disj names]
-  (-> (generate (PrologArguments. (:terms disj)) names)
+  (-> (obsolete-generate (PrologArguments. (:terms disj)) names)
       (#(assoc % 0 (PrologDisjunction. (-> % first :args))))))
 
 
@@ -751,9 +761,9 @@
           (:terms conj)))
 
 
-(defmethod generate PrologConjunction
+(defmethod obsolete-generate PrologConjunction
   [conj names]
-  (-> (generate (PrologArguments. (:terms conj)) names)
+  (-> (obsolete-generate (PrologArguments. (:terms conj)) names)
       (#(assoc % 0 (PrologConjunction. (-> % first :args))))))
 
 
@@ -801,9 +811,9 @@
   (-> neg :term get-vars))
 
 
-(defmethod generate PrologNegation
+(defmethod obsolete-generate PrologNegation
   [neg names]
-  (-> neg :term (generate names)))
+  (-> neg :term (obsolete-generate names)))
 
 
 (defmethod output PrologNegation
@@ -834,16 +844,16 @@
                   func))
 
 
-(defmethod generate PrologFormula
+(defmethod obsolete-generate PrologFormula
   [form names]
-  (-> (generate (:fact form) names)
+  (-> (obsolete-generate (:fact form) names)
       (#(assoc % 0 (PrologFormula. (first %) (:func form))))))
 
 
 (defmethod resolve [PrologAtom PrologFormula]
   [atom form pool]
   (if (and (= 0 (-> form :fact :args :args count))
-           (unify atom (-> form :fact :atom) pool))
+           (obsolete-unify atom (-> form :fact :atom) pool))
     (let [[new-term new-pool] ((:func form) (-> form :fact :args) pool)]
       [true new-term new-pool])
     [false false pool]))
@@ -890,13 +900,13 @@
   (-> rule :head :atom :name))
 
 
-(defmethod generate PrologRule
+(defmethod obsolete-generate PrologRule
   [rule names]
   (let [[new-head head-names]
-        (generate (:head rule) names)
+        (obsolete-generate (:head rule) names)
 
         [new-body new-names]
-        (generate (:body rule) head-names)]
+        (obsolete-generate (:body rule) head-names)]
 
     [(PrologRule. new-head new-body)
      new-names]))

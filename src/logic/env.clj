@@ -55,6 +55,13 @@
       right-root)))
 
 
+(defn env-bound?
+  "Tells whether the two names are bound together or not."
+  [env left right]
+  (= (env-get-root env left)
+     (env-get-root env right)))
+
+
 (defn env-get
   "Returns the value associated to the given name."
   [env var]

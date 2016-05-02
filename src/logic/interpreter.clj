@@ -224,7 +224,7 @@
           (when (:trace @debug) (trace-fail fact pool depth))
           [false {} stack])
         (do
-          (let [[target _] (generate (first clauses) {})
+          (let [[target _] (obsolete-generate (first clauses) {})
                 [status new-term res-pool] (resolve fact target pool)]
             (if (false? status)
               (recur (rest clauses) (inc index))
@@ -278,7 +278,7 @@
 ;;               (flush)
 ;;               (read-line))
 ;;             [false {} stack])
-;;           (let [[target _] (generate (first clauses) {})
+;;           (let [[target _] (obsolete-generate (first clauses) {})
 
 ;;                 [status new-term res-pool]
 ;;                 (resolve fact target pool)
