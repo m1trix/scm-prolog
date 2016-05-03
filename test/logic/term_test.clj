@@ -5,51 +5,50 @@
 
 
 (deftest test-variable
-  (testing "#var-create"
+  (testing "#create-var"
     (is (= (->Variable "_")
-           (var-create "_")))
+           (create-var "_")))
     (is (= (->Variable "Variable")
-           (var-create "Variable")))
+           (create-var "Variable")))
     (is (= (->Variable "Aa1_")
-           (var-create "Aa1_")))
+           (create-var "Aa1_")))
     (is (thrown? IllegalArgumentException
-                 (var-create "variable"))))
+                 (create-var "variable"))))
 
   (testing "#generate"
-    (let [env (-> (env-create)
-                  (env-set "Variable" "RANDOM"))]
-      (is (not= (var-create "_")
-                (-> (var-create "_")
-                    (.generate env)
+    (let [pool {"Variable" "RANDOM"}]
+      (is (not= (create-var "_")
+                (-> (create-var "_")
+                    (.generate pool)
                     first)))
-      (is (= (var-create "RANDOM")
-             (-> (var-create "Variable")
-                 (.generate env)
+      (is (= (create-var "RANDOM")
+             (-> (create-var "Variable")
+                 (.generate pool)
                  first)))
-      (is (not= (var-create "RANDOM")
-                (-> (var-create "V")
-                    (.generate env)
+      (is (not= (create-var "RANDOM")
+                (-> (create-var "V")
+                    (.generate pool)
                     first)))
       (is (= 2
-          (-> (var-create "V")
-              (.generate env)
+          (-> (create-var "V")
+              (.generate pool)
               second
               count)))))
 
   (testing "#to-string"
     (is (= "Variable"
-           (-> (var-create "Variable")
+           (-> (create-var "Variable")
                (.to-string (env-create))))))
 
   (testing "#unify"
     (let [env (env-create)]
       (is (true?
           (->> env
-              (.unify (var-create "X")
-                      (var-create "Y"))
+              (.unify (create-var "X")
+                      (create-var "Y"))
               first)))
-      (is (-> (.unify (var-create "X")
-                      (var-create "Y")
+      (is (-> (.unify (create-var "X")
+                      (create-var "Y")
                       env)
               second
               (env-bound? "X" "Y")))
@@ -59,18 +58,89 @@
         (is (= 42 (env-get env "Y")))
         (is (true?
             (->> env
-                 (.unify (var-create "Z") 
-                         (var-create "X"))
+                 (.unify (create-var "Z") 
+                         (create-var "X"))
                  first)))
 
         (is (= 42
-               (-> (.unify (var-create "Z")
-                           (var-create "X")
+               (-> (.unify (create-var "Z")
+                           (create-var "X")
                            env)
                    second
                    (env-get "Z"))))
         (is (true?
             (->> env
-                 (.unify (var-create "X")
-                         (var-create "V"))
+                 (.unify (create-var "X")
+                         (create-var "V"))
                  first)))))))
+
+
+(deftest test-atom
+
+  (testing "#create-atom"
+    (is (= (->Atom "aT12mM")
+           (create-atom "aT12mM")))
+    (is (= (->Atom "'atom with wh@th3vEr__symbols!'")
+           (create-atom "'atom with wh@th3vEr__symbols!'")))
+    (is (= (->Atom "a_T_0_m")
+           (create-atom "a_T_0_m")))
+    (is (thrown? IllegalArgumentException
+                 (create-atom "'atom with unfinished quoting")))
+    (is (thrown? IllegalArgumentException
+                 (create-atom "'atom with''too much qouting'")))
+    (is (thrown? IllegalArgumentException
+                 (create-atom "atom with N0 Quoting"))))
+
+  (testing "#to-string"
+    (is (= "'atom n@m3'"
+           (.to-string (create-atom "'atom n@m3'")
+                       (env-create))))
+    (is (= "aT_"
+           (.to-string (create-atom "aT_")
+                       (env-create)))))
+
+  (testing "#unify"
+    (is (true? (->> (env-create)
+                    (.unify (create-atom "atom")
+                            (create-atom "atom"))
+                    first)))
+    (is (true? (->> (env-create)
+                    (.unify (create-atom "atom")
+                            (create-atom "'atom'"))
+                    first)))
+    (is (true? (->> (env-create)
+                    (.unify (create-atom "'atom'")
+                            (create-atom "atom"))
+                    first)))
+    (is (true? (->> (env-create)
+                    (.unify (create-atom "'atom'")
+                            (create-atom "'atom'"))
+                    first)))
+    (is (false? (->> (env-create)
+                     (.unify (create-atom "atom_")
+                             (create-atom "atom"))
+                     first)))
+    (is (false? (->> (env-create)
+                     (.unify (create-atom "'atom '")
+                             (create-atom "'atom'"))
+                     first)))
+    (is (true? (->> (env-create)
+                    (.unify (create-var "Variable")
+                            (create-atom "atom"))
+                    first)))
+    (is (= {"Variable" (create-atom "atom")}
+           (->> (env-create)
+                (.unify (create-var "Variable")
+                        (create-atom "atom"))
+                second
+                :values)))
+    (is (true? (->> (env-create)
+                    (.unify (create-atom "atom")
+                            (create-var "Variable"))
+                    first)))
+    (is (= {"Variable" (create-atom "atom")}
+           (->> (env-create)
+                (.unify (create-atom "atom")
+                        (create-var "Variable"))
+                second
+                :values)))))

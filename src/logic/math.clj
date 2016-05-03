@@ -15,7 +15,7 @@
   [number pool]
   number)
 
-(defmethod calculate logic.term.PrologVariable
+(defmethod calculate logic.term.Variable
   [var pool]
   (let [val (extract var pool)]
     (if (or (set? val)
@@ -77,7 +77,7 @@
    (let [[answer _] (math-unify [left (calculate right pool)] pool)]
      [answer pool])
 
-   (prolog-variable? left)
+   (var? left)
    (obsolete-unify left (calculate right pool) pool)
 
    :else

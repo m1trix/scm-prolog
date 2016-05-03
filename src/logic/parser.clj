@@ -132,25 +132,25 @@
 
 
 (defn extract-atom
-  "Creates a PrologAtom from a string.
+  "Creates a Logic Atom from a string.
   Returns: [<atom>, <rest_of_string>].
   Returns: [nil, <input_string>], if there is no Atom."
   [input]
-  (let [[atom result] (find-atom input)]
-    (if (= "" atom)
+  (let [[name result] (find-atom input)]
+    (if (= "" name)
       [nil input]
-      [(create atom) result])))
+      [(create-atom name) result])))
 
 
 (defn extract-variable
-  "Creates a PrologVariable from a string.
+  "Creates a Variable from a string.
   Returns: [<variable>, <rest_of_string>]
   Returns: [nil, <input_string>], if there is no Variable."
   [input]
   (let [[var result] (find-variable input)]
     (if (= "" var)
       [nil input]
-      [(create var) result])))
+      [(create-var var) result])))
 
 
 (defn extract-list

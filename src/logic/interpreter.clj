@@ -153,7 +153,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.PrologAtom
+(defmethod prove logic.term.Atom
   [atom query pool stack depth start]
   (let [[target] (@built-in-terms (:name atom))]
     (if (nil? target)
@@ -167,7 +167,7 @@
           [false {} stack])))))
 
 
-(defmethod replace logic.term.PrologAtom
+(defmethod replace logic.term.Atom
   [atom term pool]
   [term pool])
 
@@ -183,7 +183,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.PrologVariable
+(defmethod prove logic.term.Variable
   [var query pool stack depth start]
   (let [val (extract var pool)]
     (if (or (nil? val)
@@ -193,7 +193,7 @@
         (prove val new-query new-pool stack depth start)))))
 
 
-(defmethod replace logic.term.PrologVariable
+(defmethod replace logic.term.Variable
   [var term pool]
   [term pool])
 

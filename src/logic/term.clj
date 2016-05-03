@@ -12,6 +12,7 @@
 
 
 (load "term/variable")
+(load "term/atom")
 
 
 (defmulti output (fn [term _] (type term)))
@@ -67,21 +68,13 @@
 ; #  evaluated.                                                                     # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-(defrecord PrologVariable [name])
-
-
-(defn prolog-variable? [var]
-  (= (type var)
-     logic.term.PrologVariable))
-
-
 (defn extract
   "Extracts the actual value of the Variable from the pool."
   [var pool]
   (let [val (pool var)]
     (if (or (nil? val) (set? val))
       var
-      (if (prolog-variable? val)
+      (if (var? val)
         (extract val pool)
         val))))
 
@@ -91,15 +84,12 @@
   [var pool]
   (let [val (pool var)]
     (cond
-     (set? val) val
-
-     (prolog-variable? val)
-       (bounds val pool)
-
-     :else #{})))
+      (set? val) val
+      (var? val) (bounds val pool)
+      :else #{})))
 
 
-(defmethod obsolete-generate PrologVariable
+(defmethod obsolete-generate Variable
   [var names]
   (let [name (:name var)
         new-name (-> '_G gensym str)
@@ -107,18 +97,18 @@
     (cond
 
      (= name "_")
-     [(PrologVariable. new-name) names]
+     [(Variable. new-name) names]
 
      (nil? map-name)
-     [(PrologVariable. new-name)
+     [(Variable. new-name)
       (assoc names name new-name)]
 
      :else
-     [(PrologVariable. map-name) names])))
+     [(Variable. map-name) names])))
 
 
-(defmethod get-vars PrologVariable
-  ;; A PrologVariable holds only itself,
+(defmethod get-vars Variable
+  ;; A Variable holds only itself,
   ;; but random variables are not important.
   [var]
   (if (= (:name var) "_")
@@ -126,7 +116,7 @@
     #{var}))
 
 
-(defmethod output PrologVariable
+(defmethod output Variable
   [var pool]
   (let [val (get pool var)]
     (if (or (nil? val)
@@ -141,7 +131,7 @@
   (let [real-var (extract var pool)]
     (if (= term real-var)
       [var pool]
-      (if (= PrologVariable (type real-var))
+      (if (= Variable (type real-var))
         (->>
          (bounds real-var pool)
          (reduce #(assoc %1 %2 term) (dissoc pool real-var))
@@ -165,7 +155,7 @@
                var-y var-x)])))
 
 
-(defmethod obsolete-unify [PrologVariable PrologVariable]
+(defmethod obsolete-unify [Variable Variable]
   ;; Two variables unify by agreeing to bind to each together.
   ;; That means that whenever one of them is evaluated,
   ;; the other one is also evaluated.
@@ -174,21 +164,21 @@
         val-y (extract var-y pool)]
     (cond
 
-     (and (prolog-variable? val-x)    ;; Both are not evaluated, so
-          (prolog-variable? val-y))   ;; they bind together.
+     (and (var? val-x)    ;; Both are not evaluated, so
+          (var? val-y))   ;; they bind together.
      (bind val-x val-y pool)
 
-     (prolog-variable? val-x)
+     (var? val-x)
      (evaluate val-x val-y pool)
 
-     (prolog-variable? val-y)
+     (var? val-y)
      (evaluate val-y val-x pool)
 
      :else
      (obsolete-unify val-x val-y pool))))
 
 
-(defmethod reshape PrologVariable
+(defmethod reshape Variable
   [var pool]
   (let [val (pool var)]
     (if (or (set? val)
@@ -198,51 +188,25 @@
         [new-val (assoc new-pool var new-val)]))))
 
 
-; =================================================================================== ;
-; =================================================================================== ;
-
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 ; #                                                                                 # ;
 ; #  Prolog Atom: cat, dOG, cat_dog, 'some atom+wh@tever s&mbols//'                 # ;
 ; #                                                                                 # ;
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #   It's a general-purpose name with no inherent meaning.                         # ;
-; #                                                                                 # ;
-; #  Atom "atom" can be unified with atom "'atom'".                                 # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-(defrecord PrologAtom [name])
 
-
-;; TODO
-(defn prolog-atom? [atom]
-  (same? (type atom) logic.term.PrologAtom))
-
-
-(defmethod obsolete-unify [PrologAtom PrologAtom]
-  ;; Two atoms unify if they have exactly the same names,
-  ;; or one is the same placed in ' '.
+(defmethod obsolete-unify [Atom Atom]
   [x y pool]
-  ;; Removing the ' ' and checking if the results are the same.
-  (let [name-x (re-find (re-pattern #"[^']+") (:name x))
-        name-y (re-find (re-pattern #"[^']+") (:name y))]
-    (if (same? name-x name-y)
-      (if (re-matches (re-pattern #"[a-z][a-zA-Z_]*") name-x)
-        [(create name-x) pool]
-        [(create (str \' name-x \')) pool])
-      [false pool])))
+  (.unify x y pool))
 
-(defmethod obsolete-unify [PrologAtom PrologVariable]
+(defmethod obsolete-unify [Atom Variable]
   [atom var pool]
   (evaluate var atom pool))
 
-(defmethod obsolete-unify [PrologVariable PrologAtom]
+(defmethod obsolete-unify [Variable Atom]
   [var atom pool]
   (evaluate var atom pool))
 
-
-(defmethod output PrologAtom
+(defmethod output Atom
   ;; An Atom is printed as it's name.
   [atom pool]
   (:name atom))
@@ -284,11 +248,11 @@
     [x pool]
     [false pool]))
 
-(defmethod obsolete-unify [PrologNumber PrologVariable]
+(defmethod obsolete-unify [PrologNumber Variable]
   [num var pool]
   (evaluate var num pool))
 
-(defmethod obsolete-unify [PrologVariable PrologNumber]
+(defmethod obsolete-unify [Variable PrologNumber]
   [var num pool]
   (evaluate var num pool))
 
@@ -324,11 +288,11 @@
     [x pool]
     [false pool]))
 
-(defmethod obsolete-unify [PrologString PrologVariable]
+(defmethod obsolete-unify [PrologString Variable]
   [str var pool]
   (evaluate var str pool))
 
-(defmethod obsolete-unify [PrologVariable PrologString]
+(defmethod obsolete-unify [Variable PrologString]
   [var str pool]
   (evaluate var str pool))
 
@@ -484,9 +448,9 @@
                                   (:head %)))
                      (:tail %))))
 
-     (= PrologVariable (-> list :tail type))
+     (= Variable (-> list :tail type))
      (let [new-tail (extract (:tail list) pool)]
-       (if (= PrologVariable (type new-tail))
+       (if (= Variable (type new-tail))
          list
          (->
           (PrologList. (:head list) new-tail)
@@ -537,11 +501,11 @@
                   (conj new-head new-term)
                   new-pool)))))))
 
-(defmethod obsolete-unify [PrologList PrologVariable]
+(defmethod obsolete-unify [PrologList Variable]
   [list var pool]
   (evaluate var list pool))
 
-(defmethod obsolete-unify [PrologVariable PrologList]
+(defmethod obsolete-unify [Variable PrologList]
   [var list pool]
   (evaluate var list pool))
 
@@ -641,11 +605,11 @@
         [(PrologFact. (:atom fact-x) new-args)
          new-pool]))))
 
-(defmethod obsolete-unify [PrologFact PrologVariable]
+(defmethod obsolete-unify [PrologFact Variable]
   [fact var pool]
   (evaluate var fact pool))
 
-(defmethod obsolete-unify [PrologVariable PrologFact]
+(defmethod obsolete-unify [Variable PrologFact]
   [var fact pool]
   (evaluate var fact pool))
 
@@ -850,7 +814,7 @@
       (#(assoc % 0 (PrologFormula. (first %) (:func form))))))
 
 
-(defmethod resolve [PrologAtom PrologFormula]
+(defmethod resolve [Atom PrologFormula]
   [atom form pool]
   (if (and (= 0 (-> form :fact :args :args count))
            (obsolete-unify atom (-> form :fact :atom) pool))
@@ -958,10 +922,10 @@
    (PrologString. inp)
 
    (re-matches (re-pattern #"[A-Z][0-9A-Za-z_]*|[_]") inp)
-   (PrologVariable. inp)
+   (create-var inp)
 
    (re-matches (re-pattern #"[a-z][a-zA-Z_]*|'[^']+'") inp)
-   (PrologAtom. inp)
+   (create-atom inp)
 
    :else
    (throw (Exception. (str "Unable to create a PrologTerm from " inp "!")))))

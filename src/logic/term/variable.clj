@@ -3,7 +3,10 @@
 
 ;;  - name: A string, starting with a capital letter.
 ;;          Contains small letters, capital letters, digits,
-;;          underscores and dashes.
+;;          and underscores: Variable, VAR_123a.
+;;          It could also be a single underscore, meaning
+;;          that the variable has a random name nad it's
+;;          not used anywhere: _.
 
 ;;  + to-string: The string representation of the variable
 ;;               inside the given environment. If it does
@@ -51,7 +54,7 @@
       (throw))))
 
 
-(defn var-create
+(defn create-var
   "Creates a new Logic Variable."
   [name]
   (var-ensure-name name)
@@ -77,19 +80,17 @@
   [var pool]
   (let [name (:name var)
         new-name (-> '_G gensym str)
-        pool-name (env-get pool name)]
+        pool-name (pool name)]
     (cond
       (= "_" name)
-      [(->Variable new-name)
-       pool]
+      [(->Variable new-name) pool]
 
       (nil? pool-name)
       [(->Variable new-name)
-       (env-set pool name new-name)]
+       (assoc pool name new-name)]
 
       :else
-      [(->Variable pool-name)
-       pool])))
+      [(->Variable pool-name) pool])))
 
 
 (defn- var-bind
@@ -117,5 +118,12 @@
 (defn var-unify
   [left right env]
   (if-not (var? right)
-    [false env]
+    (.unify right left env)
     (var-bind left right env)))
+
+
+(defn var-evaluate
+  [var val env]
+  (env-set env
+          (:name var)
+          val))

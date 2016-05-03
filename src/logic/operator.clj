@@ -113,7 +113,7 @@
 
 
 (defn make-fact [op args]
-  (->PrologFact (-> op :name ->PrologAtom)
+  (->PrologFact (-> op :name ->Atom)
                 (->PrologArguments args)))
 
 
