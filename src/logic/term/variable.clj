@@ -29,25 +29,37 @@
 
 (def var-name-pattern #"^(?:_)|(?:[A-Z]\w*)$")
 
-(declare var-unify)
-(declare var->string)
-(declare var-generate)
 
-(defrecord Variable [name] ITerm
+(declare unify-var-and-term)
+(declare var->string)
+(declare generate-var)
+
+
+(defrecord Variable [name]
+  ITerm
   (to-string [this env]
     (var->string this env))
 
   (generate [this pool]
-    (var-generate this pool))
+    (generate-var this pool))
 
   (unify [this other env]
-    (var-unify this other env)))
+    (unify-var-and-term this other env)))
+
+
+(defn valid-var-name?
+  "Tells whether the name can be used as a Logic Variable."
+  [name]
+  (-> var-name-pattern 
+      (re-matches name)
+      nil?
+      not))
 
 
 (defn- var-ensure-name
   "Ensures that the given name could be used as a Logic Variable name."
   [name]
-  (when-not (re-matches var-name-pattern name)
+  (when-not (valid-var-name? name)
     (-> "Invalid Logic Variable name '%s'"
       (format name)
       (IllegalArgumentException.)
@@ -61,13 +73,13 @@
   (->Variable name))
 
 
-(defn var?
+(defn variable?
   "Tells whether the given instance is a Logic Variable."
-  [var]
-  (instance? Variable var))
+  [term]
+  (= (type term)
+     logic.term.Variable))
 
-
-(defn var->string
+(defn- var->string
   "Returns the string representation of the variable inside the environment"
   [var env]
   (let [value (env-get env (:name var))]
@@ -76,7 +88,7 @@
       (.to-string value env))))
 
 
-(defn var-generate
+(defn- generate-var
   [var pool]
   (let [name (:name var)
         new-name (-> '_G gensym str)
@@ -93,7 +105,7 @@
       [(->Variable pool-name) pool])))
 
 
-(defn- var-bind
+(defn- unify-variables
   [left right env]
   (let [left-value
         (env-get env (:name left))
@@ -110,20 +122,20 @@
                       (:name right)
                       (:name left))]
       :else
-      (unify left-value
-             right-value
-             env))))
+      (.unify left-value
+              right-value
+              env))))
 
 
-(defn var-unify
-  [left right env]
-  (if-not (var? right)
-    (.unify right left env)
-    (var-bind left right env)))
+(defn unify-var-and-term
+  [var term env]
+  (let [value (env-get env (:name var))]
+    (cond
+      (not (nil? value))
+      (.unify value term env)
 
+      (variable? term)
+      (unify-variables var term env)
 
-(defn var-evaluate
-  [var val env]
-  (env-set env
-          (:name var)
-          val))
+      :else
+      [true (env-set env (:name var) term)])))

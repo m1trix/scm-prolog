@@ -52,7 +52,7 @@
 
 
   (testing "Parsing Arguments"
-    (is (= [(create-arguments ["a" "X" 3 "\"str\"" []]) "."]
+    (is (= [(create-tuple ["a" "X" 3 "\"str\"" []]) "."]
            (extract-arguments "(a, X, 3, \"str\", [])."))))
 
 

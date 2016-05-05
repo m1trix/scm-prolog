@@ -223,7 +223,7 @@
        (= \) (first text))
        (if check-arg
          (throw (Exception. (str "Missing argument: \"" (last args) ", \" (here) .")))
-         [(create-arguments args) (subs text 1)])
+         [(create-tuple args) (subs text 1)])
 
        (= \[ (first text))
        (if (false? check-arg)

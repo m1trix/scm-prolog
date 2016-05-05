@@ -114,7 +114,7 @@
 
 (defn make-fact [op args]
   (->PrologFact (-> op :name ->Atom)
-                (->PrologArguments args)))
+                (->Tuple args)))
 
 
 (defn get-binary [name]

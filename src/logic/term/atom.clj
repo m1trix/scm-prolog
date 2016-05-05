@@ -20,40 +20,49 @@
 (def atom-unquoted-name-pattern #"^[a-z]\w*$")
 (def atom-quoted-name-pattern #"^'([^']+)'$")
 
-(declare atom-unify)
+(declare unify-atom-and-term)
 
 (defrecord Atom [name] ITerm
   (to-string [this _] (:name this))
-  (generate [this _] this)
+  (generate [this pool] [this pool])
   (unify [this other env]
-    (atom-unify this other env)))
+    (unify-atom-and-term this
+                         other
+                         env)))
 
 
-(defn- atom-ensure-name
+(defn valid-atom-name?
+  "Checks whther the name is a valid Logic Atom name."
+  [name]
+  (or (re-matches atom-unquoted-name-pattern name)
+      (re-matches atom-quoted-name-pattern name)))
+
+
+(defn- ensure-valid-atom-name
   "Ensures that the given name could be used as a Logic Atom name."
   [name]
-  (when (and (not (re-matches atom-unquoted-name-pattern name))
-             (not (re-matches atom-quoted-name-pattern name)))
+  (when-not (valid-atom-name? name)
     (-> "Invalid Logic Atom name '%s'"
       (format name)
-      (IllegalArgumentException.)
-      (throw))))
+      IllegalArgumentException.
+      throw)))
 
 
 (defn create-atom
   "Creates a new Logic Atom."
   [name]
-  (atom-ensure-name name)
+  (ensure-valid-atom-name name)
   (->Atom name))
 
 
 (defn atom?
   "Tells whether the given instance is a Logic Atom."
-  [var]
-  (instance? Atom var))
+  [term]
+  (= (type term)
+     logic.term.Atom))
 
 
-(defn- atom-drop-quotes
+(defn- unqote-atom-name
   "Returns the unqoted name of the Logic Atom."
   [name]
   (let [matches (re-matches atom-quoted-name-pattern name)]
@@ -62,21 +71,21 @@
       (second matches))))
 
 
-(defn- atom-unify-names
+(defn- same-atom-names?
   "Returns true if the two atom names can be unified, false otherwise."
   [left right]
-  (= (-> left :name atom-drop-quotes)
-     (-> right :name atom-drop-quotes)))
+  (= (-> left :name unqote-atom-name)
+     (-> right :name unqote-atom-name)))
 
 
-(defn atom-unify
+(defn unify-atom-and-term
   [left right env]
   (cond
-    (var? right)
-    [true (var-evaluate right left env)]
+    (variable? right)
+    (.unify right left env)
 
     (atom? right)
-    [(atom-unify-names left right) env]
+    [(same-atom-names? left right) env]
 
     :else
     [false env]))

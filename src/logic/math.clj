@@ -34,8 +34,8 @@
           (throw (Exception. (str "No operator matches \"" name "\".")))
           (let [form (first all)
                 new-fact (->PrologFact (:atom fact)
-                                       (->PrologArguments (mapv #(calculate % pool)
-                                                                (-> fact :args :args))))
+                                       (->Tuple (mapv #(calculate % pool)
+                                                      (-> fact :args :terms))))
                 [status new-term _] (resolve new-fact form pool)]
             (if (true? status)
               new-term
@@ -77,7 +77,7 @@
    (let [[answer _] (math-unify [left (calculate right pool)] pool)]
      [answer pool])
 
-   (var? left)
+   (variable? left)
    (obsolete-unify left (calculate right pool) pool)
 
    :else

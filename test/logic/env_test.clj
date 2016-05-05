@@ -15,7 +15,9 @@
            (-> (env-create)
                (env-set "X" :x)
                (env-set "Y" :y)
-               :values))))
+               :values)))
+    (is (nil? (-> (env-create)
+                  (env-get "X")))))
 
   (testing "#env-bind"
     (is (= {"X" "Y"}
