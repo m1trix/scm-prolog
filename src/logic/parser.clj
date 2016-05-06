@@ -246,7 +246,7 @@
     (if atom
       (let [[args fact-text] (extract-arguments atom-text)]
         (if args
-          [(->PrologFact atom args) fact-text]
+          [(->Fact atom args) fact-text]
           result))
 
       (let [[parsed-list text-after-list] (extract-list text)]

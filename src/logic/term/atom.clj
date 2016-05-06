@@ -79,13 +79,16 @@
 
 
 (defn unify-atom-and-term
-  [left right env]
+  [atom term env]
   (cond
-    (variable? right)
-    (.unify right left env)
+    (variable? term)
+    [true (evaluate-var term atom env)]
 
-    (atom? right)
-    [(same-atom-names? left right) env]
+    (atom? term)
+    [(same-atom-names? atom term) env]
+
+    (fact? term)
+    (.unify term atom env)
 
     :else
     [false env]))

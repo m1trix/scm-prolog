@@ -49,6 +49,12 @@
      logic.term.Tuple))
 
 
+(defn empty-tuple?
+  "Tells whether the given Tuple is empty."
+  [tuple]
+  (-> tuple :terms zero?))
+
+
 (defn- unify-tuple-sizes
   "Tells whether the sizes of the two tuples are the same."
   [left right]

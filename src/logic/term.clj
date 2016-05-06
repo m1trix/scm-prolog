@@ -11,12 +11,13 @@
   (unify [this other env]))
 
 
-(declare create)
+(declare create fact?)
 
 
 (load "term/variable")
 (load "term/atom")
 (load "term/tuple")
+(load "term/fact")
 
 
 (defmulti output (fn [term _] (type term)))
@@ -551,76 +552,65 @@
 ; =================================================================================== ;
 ; =================================================================================== ;
 
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #  Prolog Fact: cat(tom). member(X, Y).                                           # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #  Each fact has a name and arguments.                                            # ;
-; #  The name is a Prolog Atom.                                                     # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-(defrecord PrologFact [atom args])
-
-
-(defn create-fact
-  [[atom args]]
-  (PrologFact. (create atom)
-               (create-tuple args)))
-
-(defmethod get-name PrologFact
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                         # ;
+; #  Fact: cat(tom). member(X, Y).                                          # ;
+; #                                                                         # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+(defmethod get-name Fact
   [fact]
   (-> fact :atom :name))
 
 
-(defmethod obsolete-unify [PrologFact PrologFact]
+(defmethod obsolete-unify [Fact Fact]
   [fact-x fact-y pool]
   (if (-> (obsolete-unify (:atom fact-x) (:atom fact-y) pool)
           (first)
           (false?))
     [false pool]
     (let [[new-args new-pool]
-          (obsolete-unify (:args fact-x) (:args fact-y) pool)]
+          (obsolete-unify (:tuple fact-x) (:tuple fact-y) pool)]
 
       (if (false? new-args)
         [false pool]
-        [(PrologFact. (:atom fact-x) new-args)
+        [(Fact. (:atom fact-x) new-args)
          new-pool]))))
 
-(defmethod obsolete-unify [PrologFact Variable]
+(defmethod obsolete-unify [Fact Variable]
   [fact var pool]
   (evaluate var fact pool))
 
-(defmethod obsolete-unify [Variable PrologFact]
+(defmethod obsolete-unify [Variable Fact]
   [var fact pool]
   (evaluate var fact pool))
 
 
-(defmethod obsolete-generate PrologFact
+(defmethod obsolete-generate Fact
   [fact names]
-  (-> (obsolete-generate (:args fact) names)
-      (#(assoc % 0 (PrologFact. (:atom fact) (first %))))))
+  (let [[new-tuple names]
+        (obsolete-generate (:tuple fact) names)]
+    [(->Fact (-> fact :atom :name ->Atom)
+             new-tuple)
+     names]))
 
 
-(defmethod get-vars PrologFact
+(defmethod get-vars Fact
   [fact]
-  (get-vars (:args fact)))
+  (get-vars (:tuple fact)))
 
 
-(defmethod output PrologFact
+(defmethod output Fact
   [fact pool]
-  (str (output (:atom fact) pool)
-       (output (:args fact) pool)))
+  (.to-string fact pool))
 
 
-(defmethod reshape PrologFact
+(defmethod reshape Fact
   [fact pool]
-  (-> (reshape (:args fact) pool)
-      (#(assoc % 0 (PrologFact. (:atom fact) (first %))))))
+  (-> (reshape (:tuple fact) pool)
+      (#(assoc % 0 (Fact. (:atom fact) (first %))))))
 
 
-(defmethod resolve [PrologFact PrologFact]
+(defmethod resolve [Fact Fact]
   [fact-x fact-y pool]
   (let [[new-fact new-pool]
         (obsolete-unify fact-x fact-y pool)]
@@ -787,7 +777,7 @@
 
 
 (defn create-formula [[name args func]]
-  (PrologFormula. (create-fact [name args])
+  (PrologFormula. (create-fact name args)
                   func))
 
 
@@ -799,18 +789,18 @@
 
 (defmethod resolve [Atom PrologFormula]
   [atom form pool]
-  (if (and (= 0 (-> form :fact :args :terms count))
+  (if (and (= 0 (-> form :fact :tuple :terms count))
            (obsolete-unify atom (-> form :fact :atom) pool))
-    (let [[new-term new-pool] ((:func form) (-> form :fact :args) pool)]
+    (let [[new-term new-pool] ((:func form) (-> form :fact :tuple) pool)]
       [true new-term new-pool])
     [false false pool]))
 
 
-(defmethod resolve [PrologFact PrologFormula]
+(defmethod resolve [Fact PrologFormula]
   [fact form pool]
   (let [[status new-fact new-pool] (resolve fact (:fact form) pool)]
     (if (true? status)
-      (let [[new-term new-pool] ((:func form) (-> new-fact :args :terms) pool)]
+      (let [[new-term new-pool] ((:func form) (-> new-fact :tuple :terms) pool)]
         (if (false? new-term)
           [false false pool]
           [true new-term new-pool]))
@@ -837,7 +827,7 @@
 
 
 (defn create-rule [[name args body]]
-  (let [new-head (create-fact [name args])
+  (let [new-head (create-fact name args)
         new-body (create body)]
     (PrologRule. new-head new-body)))
 
@@ -878,7 +868,7 @@
        (output (:body rule) pool)))
 
 
-(defmethod resolve [PrologFact PrologRule]
+(defmethod resolve [Fact PrologRule]
   [fact rule pool]
   (let [[status new-fact new-pool]
         (resolve fact (:head rule) pool)
@@ -904,10 +894,10 @@
    (re-matches (re-pattern #"\"[^\"]+\"") inp)
    (PrologString. inp)
 
-   (re-matches (re-pattern #"[A-Z][0-9A-Za-z_]*|[_]") inp)
+   (valid-var-name? inp)
    (create-var inp)
 
-   (re-matches (re-pattern #"[a-z][a-zA-Z_]*|'[^']+'") inp)
+   (valid-atom-name? inp)
    (create-atom inp)
 
    :else
@@ -919,7 +909,7 @@
   (cond
 
    (= key :fact)
-   (create-fact rest)
+   (apply create-fact rest)
 
    (= key :disj)
    (create-disjunction rest)

@@ -226,3 +226,80 @@
                       env)
               second
               (env-bound? "VAR1" "VAR2"))))))
+
+
+(deftest test-fact
+  (testing "#create-fact"
+    (is (= (->Fact (create-atom "name")
+                   (create-tuple ["p1" "P2"]))
+           (create-fact "name" ["p1" "P2"]))))
+
+  (testing "#fact?"
+    (is (-> (create-fact "name" ["p1" "P2"])
+            fact?)))
+
+  (testing "#to-string of a fact with no parameters"
+    (is (= "fact()"
+           (.to-string (create-fact "fact" [])
+                       (env-create)))))
+
+  (testing "#to-string of a fact with no variables"
+    (is (= "fact(atom1, atom2)"
+           (.to-string (create-fact "fact" ["atom1", "atom2"])
+                       (env-create)))))
+
+  (testing "#to-string of a fact with no variables"
+    (let [env (-> (env-create)
+                  (env-set "VAR1" (create-atom "atom")))]
+      (is (= "fact(atom, VAR2)"
+             (.to-string (create-fact "fact" ["VAR1", "VAR2"])
+                         env)))))
+
+  (testing "When generating facts, then the repeated variables have the same names"
+    (let [[fact pool]
+          (.generate (create-fact "name"
+                                  ["VAR1" "atom" "VAR2" "VAR1" "V2"])
+                     {"VAR1" "V1", "VAR2" "V2"})]
+      (is (= fact
+             (->Fact
+               (->Atom "name")
+               (->Tuple [
+                  (create-var "V1")
+                  (create-atom "atom")
+                  (create-var "V2")
+                  (create-var "V1")
+                  (->Variable (pool "V2"))]))))))
+
+  (testing "When two facts unify, then the variables are evaluated properly"
+    (let [[unified? env]
+          (.unify (create-fact "name" ["X" "Y" "atom"])
+                  (create-fact "name" ["atom" "X" "Y"])
+                  (env-create))]
+      (is unified?)
+      (is (env-bound? env "X" "Y"))
+      (is (= (create-atom "atom")
+             (env-get env "X")))
+      (is (= (create-atom "atom")
+             (env-get env "Y")))))
+
+  (testing "When the names are different, then the facts don't unify"
+    (let [[unified? _]
+          (.unify (create-fact "fact1" ["X" "Y"])
+                  (create-fact "fact2" ["X" "Y"])
+                  (env-create))]
+      (is (not unified?))))
+
+  (testing "When the parameters have different count, then the facts don't unify"
+    (let [[unified? _]
+          (.unify (create-fact "fact" ["X"])
+                  (create-fact "fact" ["X" "Y"])
+                  (env-create))]
+      (is (not unified?))))
+
+  (testing "Unifying facts, when evaluation not possible."
+    (let [[unified? _]
+          (.unify (create-fact "fact" ["X" "Y" "X"])
+                  (create-fact "fact" ["atom1" "atom2" "Y"])
+                  (env-create))]
+      (is (not unified?))))
+)

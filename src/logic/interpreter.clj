@@ -208,7 +208,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.PrologFact
+(defmethod prove logic.term.Fact
   [fact query pool stack depth start]
   (let [name (-> fact :atom :name)
         all (@user-terms name)
@@ -241,7 +241,7 @@
                     (prove new-term rep-query rep-pool new-stack depth 0)))))))))))
 
 
-;; (defmethod prove logic.term.PrologFact
+;; (defmethod prove logic.term.Fact
 ;;   [fact query pool stack depth start]
 ;;   (let [name (-> fact :atom :name)
 ;;         all (into [] (concat (built-in-terms name)
@@ -341,7 +341,7 @@
 ;;                  (prove new-term re-query re-pool new-stack depth 0)))))))))))
 
 
-(defmethod replace logic.term.PrologFact
+(defmethod replace logic.term.Fact
   [fact term pool]
   (if (true? term)
     [true pool]

@@ -23,7 +23,7 @@
       (throw (Exception. (str "Cannot evaluate unbound Variable \"" (:name var) "\".")))
       (calculate val pool))))
 
-(defmethod calculate logic.term.PrologFact
+(defmethod calculate logic.term.Fact
   [fact pool]
   (let [name (-> fact :atom :name)
         target (built-in-math name)]
@@ -33,9 +33,9 @@
         (if (empty? all)
           (throw (Exception. (str "No operator matches \"" name "\".")))
           (let [form (first all)
-                new-fact (->PrologFact (:atom fact)
-                                       (->Tuple (mapv #(calculate % pool)
-                                                      (-> fact :args :terms))))
+                new-fact (->Fact (:atom fact)
+                                 (->Tuple (mapv #(calculate % pool)
+                                                (-> fact :tuple :terms))))
                 [status new-term _] (resolve new-fact form pool)]
             (if (true? status)
               new-term

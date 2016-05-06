@@ -91,7 +91,7 @@
 (defn- generate-var
   [var pool]
   (let [name (:name var)
-        new-name (-> '_G gensym str)
+        new-name (-> '_V gensym str)
         pool-name (pool name)]
     (cond
       (= "_" name)
@@ -127,15 +127,22 @@
               env))))
 
 
+(defn evaluate-var
+  [var term env]
+  (env-set env
+           (:name var)
+           term))
+
+
 (defn unify-var-and-term
   [var term env]
   (let [value (env-get env (:name var))]
     (cond
-      (not (nil? value))
-      (.unify value term env)
-
       (variable? term)
       (unify-variables var term env)
+      
+      (nil? value)
+      (.unify term var env)
 
       :else
-      [true (env-set env (:name var) term)])))
+      (.unify value term env))))
