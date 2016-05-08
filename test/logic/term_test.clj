@@ -301,5 +301,85 @@
           (.unify (create-fact "fact" ["X" "Y" "X"])
                   (create-fact "fact" ["atom1" "atom2" "Y"])
                   (env-create))]
-      (is (not unified?))))
-)
+      (is (not unified?)))))
+
+
+(deftest test-rule
+  (testing "#create-rule"
+    (is (= (create-rule "rule" ["atom" "Var"] [:fact "true" []])
+           (->Rule (->Fact (->Atom "rule")
+                           (->Tuple [(->Atom "atom")
+                                     (->Variable "Var")]))
+                   (->Fact (->Atom "true")
+                           (->Tuple []))))))
+
+  (testing "Calling #to-string, when the rule has no variables"
+    (is (= "rule(atom1, atom2) :- fact(atom1)"
+           (.to-string
+             (create-rule "rule"
+                          ["atom1", "atom2"]
+                          [:fact "fact" ["atom1"]])
+             (env-create)))))
+
+  (testing "Calling #to-string, when the rule has variables"
+    (let [env (-> (env-create)
+                  (env-set "X" (create "atom")))]
+      (is (= "rule(atom) :- fact(atom, Y, atom)"
+             (.to-string
+               (create-rule "rule"
+                            ["X"]
+                            [:fact "fact" ["X" "Y" "atom"]])
+               env)))))
+
+  (let [pool {"X" "NEW_X", "Y", "NEW_Y"}]
+    (testing "Generating a rule"
+      (let [[result pool]
+            (.generate
+              (create-rule "rule" ["X", "Z"]
+                           [:fact "fact" ["atom", "Y", "X"]])
+              pool)]
+        (is (= result
+               (->Rule (->Fact (->Atom "rule")
+                               (->Tuple [(->Variable "NEW_X")
+                                         (->Variable (pool "Z"))]))
+                       (->Fact (->Atom "fact")
+                               (->Tuple [(->Atom "atom")
+                                         (->Variable "NEW_Y")
+                                         (->Variable "NEW_X")]))))))))
+
+  (let [test-rule-with-no-args
+        (create-rule "rule" [] [:fact "fact" ["Y" "X"]])
+
+        test-rule-with-args
+        (create-rule "rule" ["X" "Y"] [:fact "fact" ["Y" "X"]])]
+
+    (testing "Unifying a Rule and an Atom, when they cannot unify"
+      (let [[unified? _]
+            (.unify test-rule-with-args
+                    (create-atom "rule")
+                    (env-create))]
+        (is (not unified?))))
+
+    (testing "Unifying a Rule and an Atom, when they can unify"
+      (let [[unified? _]
+            (.unify test-rule-with-no-args
+                    (create-atom "rule")
+                    (env-create))]
+        (is unified?)))
+
+    (testing "Unifying a Rule and a Fact, when they cannot unify"
+      (let [[unified? _]
+            (.unify test-rule-with-args
+                    (create-fact "rule" ["X" "Y" "Z"])
+                    (env-create))]
+        (is (not unified?))))
+
+    (testing "Unifying a Rule and a Fact, when they can unify"
+      (let [[unified? env]
+            (.unify test-rule-with-args
+                    (create-fact "rule" ["A" "atom"])
+                    (env-create))]
+        (is unified?)
+        (is (env-bound? env "A" "X"))
+        (is (= (create-atom "atom")
+               (env-get env "Y")))))))

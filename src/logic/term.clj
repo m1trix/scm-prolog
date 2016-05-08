@@ -18,6 +18,7 @@
 (load "term/atom")
 (load "term/tuple")
 (load "term/fact")
+(load "term/rule")
 
 
 (defmulti output (fn [term _] (type term)))
@@ -601,7 +602,8 @@
 
 (defmethod output Fact
   [fact pool]
-  (.to-string fact pool))
+  (str (output (:atom fact) pool)
+       (output (:tuple fact) pool)))
 
 
 (defmethod reshape Fact
@@ -810,34 +812,17 @@
 ; =================================================================================== ;
 ; =================================================================================== ;
 
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #  Prolog Rule: member(A, [_ | X]) :- member(A, X).                               # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-; #                                                                                 # ;
-; #  A Prolog Rule has a head and a body.                                           # ;
-; #  The head is a Prolog Structure. A Rule is defined by it's head.                # ;
-; #  The body is a Term: Fact, Conjunction or Disjunction.                          # ;
-; #  The symbol :- is called neck. It means "body => head",                         # ;
-; #  or "if the body is true, then the head is true."                               # ;
-; #                                                                                 # ;
-; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
-(defrecord PrologRule [head body])
-
-
-(defn create-rule [[name args body]]
-  (let [new-head (create-fact name args)
-        new-body (create body)]
-    (PrologRule. new-head new-body)))
-
-
-(defmethod get-name PrologRule
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+; #                                                                         # ;
+; #  Rule: member(A, [_ | X]) :- member(A, X).                              # ;
+; #                                                                         # ;
+; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
+(defmethod get-name Rule
   [rule]
   (-> rule :head :atom :name))
 
 
-(defmethod obsolete-generate PrologRule
+(defmethod obsolete-generate Rule
   [rule names]
   (let [[new-head head-names]
         (obsolete-generate (:head rule) names)
@@ -845,11 +830,11 @@
         [new-body new-names]
         (obsolete-generate (:body rule) head-names)]
 
-    [(PrologRule. new-head new-body)
+    [(Rule. new-head new-body)
      new-names]))
 
 
-(defmethod reshape PrologRule
+(defmethod reshape Rule
   [rule pool]
   (let [[new-head head-pool]
         (reshape (:head rule) pool)
@@ -857,18 +842,18 @@
         [new-body body-pool]
         (reshape (:body rule) head-pool)]
 
-    [(PrologRule. new-head new-body)
+    [(Rule. new-head new-body)
      body-pool]))
 
 
-(defmethod output PrologRule
+(defmethod output Rule
   [rule pool]
   (str (output (:head rule) pool)
        " :- "
        (output (:body rule) pool)))
 
 
-(defmethod resolve [Fact PrologRule]
+(defmethod resolve [Fact Rule]
   [fact rule pool]
   (let [[status new-fact new-pool]
         (resolve fact (:head rule) pool)
@@ -879,7 +864,7 @@
     (if (false? status)
       [false false pool]
       [:unresolved
-       (PrologRule. new-fact new-body)
+       (Rule. new-fact new-body)
        final-pool])))
 
 
@@ -924,7 +909,7 @@
    (create-formula rest)
 
    (= key :rule)
-   (create-rule rest)
+   (apply create-rule rest)
 
    :else
    (create-list all)))

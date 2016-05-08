@@ -57,12 +57,12 @@
 
 
   (testing "Parsing Complex Terms"
-
-    (is (= [(create [:fact "fact" ["atom" "Var"]])]
+    (is (= [(create-fact "fact" ["atom" "Var"])]
            (parse "fact(atom, Var).")))
 
-    (is (= [(create [:rule "demo" ["atom" ["element"]]
-                     [:fact "demo" ["element"]]])]
+    (is (= [(create-rule "demo"
+                         ["atom" ["element"]]
+                         [:fact "demo" ["element"]])]
            (parse "demo(atom, [element]) :- demo(element).")))
 
     (is (= [(create [:conj [:fact "fact" ["A" "B"]]

@@ -358,7 +358,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.PrologRule
+(defmethod prove logic.term.Rule
   [rule query pool stack depth start]
   (when (:info @debug)
     (println-gray "    INFO: Proving Rule."))
@@ -373,12 +373,12 @@
         [true new-pool new-stack]))))
 
 
-(defmethod replace logic.term.PrologRule
+(defmethod replace logic.term.Rule
   [rule term pool]
   (let [[new-term new-pool] (replace (:body rule) term pool)]
     (if (true? new-term)
       [true new-pool]
-      [(->PrologRule (:head rule) new-term)
+      [(->Rule (:head rule) new-term)
        new-pool])))
 
 

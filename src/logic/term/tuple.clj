@@ -52,7 +52,7 @@
 (defn empty-tuple?
   "Tells whether the given Tuple is empty."
   [tuple]
-  (-> tuple :terms zero?))
+  (-> tuple :terms empty?))
 
 
 (defn- unify-tuple-sizes
