@@ -153,7 +153,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.Atom
+(defmethod prove logic.term.PrologAtom
   [atom query pool stack depth start]
   (let [[target] (@built-in-terms (:name atom))]
     (if (nil? target)
@@ -167,7 +167,7 @@
           [false {} stack])))))
 
 
-(defmethod replace logic.term.Atom
+(defmethod replace logic.term.PrologAtom
   [atom term pool]
   [term pool])
 
@@ -183,7 +183,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.Variable
+(defmethod prove logic.term.PrologVariable
   [var query pool stack depth start]
   (let [val (extract var pool)]
     (if (or (nil? val)
@@ -193,7 +193,7 @@
         (prove val new-query new-pool stack depth start)))))
 
 
-(defmethod replace logic.term.Variable
+(defmethod replace logic.term.PrologVariable
   [var term pool]
   [term pool])
 
@@ -208,7 +208,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.Fact
+(defmethod prove logic.term.PrologFact
   [fact query pool stack depth start]
   (let [name (-> fact :atom :name)
         all (@user-terms name)
@@ -224,7 +224,7 @@
           (when (:trace @debug) (trace-fail fact pool depth))
           [false {} stack])
         (do
-          (let [[target _] (obsolete-generate (first clauses) {})
+          (let [[target _] (generate (first clauses) {})
                 [status new-term res-pool] (resolve fact target pool)]
             (if (false? status)
               (recur (rest clauses) (inc index))
@@ -241,7 +241,7 @@
                     (prove new-term rep-query rep-pool new-stack depth 0)))))))))))
 
 
-;; (defmethod prove logic.term.Fact
+;; (defmethod prove logic.term.PrologFact
 ;;   [fact query pool stack depth start]
 ;;   (let [name (-> fact :atom :name)
 ;;         all (into [] (concat (built-in-terms name)
@@ -278,7 +278,7 @@
 ;;               (flush)
 ;;               (read-line))
 ;;             [false {} stack])
-;;           (let [[target _] (obsolete-generate (first clauses) {})
+;;           (let [[target _] (generate (first clauses) {})
 
 ;;                 [status new-term res-pool]
 ;;                 (resolve fact target pool)
@@ -341,7 +341,7 @@
 ;;                  (prove new-term re-query re-pool new-stack depth 0)))))))))))
 
 
-(defmethod replace logic.term.Fact
+(defmethod replace logic.term.PrologFact
   [fact term pool]
   (if (true? term)
     [true pool]
@@ -358,7 +358,7 @@
 ; # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # ;
 
 
-(defmethod prove logic.term.Rule
+(defmethod prove logic.term.PrologRule
   [rule query pool stack depth start]
   (when (:info @debug)
     (println-gray "    INFO: Proving Rule."))
@@ -373,12 +373,12 @@
         [true new-pool new-stack]))))
 
 
-(defmethod replace logic.term.Rule
+(defmethod replace logic.term.PrologRule
   [rule term pool]
   (let [[new-term new-pool] (replace (:body rule) term pool)]
     (if (true? new-term)
       [true new-pool]
-      [(->Rule (:head rule) new-term)
+      [(->PrologRule (:head rule) new-term)
        new-pool])))
 
 

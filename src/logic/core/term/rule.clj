@@ -19,7 +19,7 @@
 ;;               A Rule can be unified to an Atom, if its head
 ;;               unifies with the Atom.
 
-(in-ns 'logic.term)
+(in-ns 'logic.core.term)
 
 
 (declare unify-rule-and-term)
@@ -43,13 +43,13 @@
   "Creates a new Rule."
   [name parameters body]
   (->Rule (create-fact name parameters)
-          (create body)))
+          (create-term body)))
 
 
 (defn rule?
   "Tells whether the given instance is a Rule."
   [term]
-  (instance? logic.term.Rule term))
+  (instance? logic.core.term.Rule term))
 
 
 (defn- rule->string

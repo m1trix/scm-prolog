@@ -1,8 +1,4 @@
-(ns logic.env
-  (:use clojure.pprint))
-
-
-(defrecord EnvNode [parent value])
+(ns logic.core.env)
 
 
 (defn env-create
@@ -13,6 +9,7 @@
 
 
 (defn- env-assoc-parent
+  "Changes the parent name of the given name."
   [env name parent]
   (if (= name parent)
     env

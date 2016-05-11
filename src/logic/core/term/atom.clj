@@ -14,7 +14,7 @@
 ;;  + unify:     Two atoms unify if their names are the same, when
 ;;               unqoted.
 
-(in-ns 'logic.term)
+(in-ns 'logic.core.term)
 
 
 (def atom-unquoted-name-pattern #"^[a-z]\w*$")
@@ -34,8 +34,10 @@
 (defn valid-atom-name?
   "Checks whther the name is a valid Logic Atom name."
   [name]
-  (or (re-matches atom-unquoted-name-pattern name)
-      (re-matches atom-quoted-name-pattern name)))
+  (and
+    (string? name)
+    (or (re-matches atom-unquoted-name-pattern name)
+        (re-matches atom-quoted-name-pattern name))))
 
 
 (defn- ensure-valid-atom-name
@@ -58,8 +60,7 @@
 (defn atom?
   "Tells whether the given instance is a Logic Atom."
   [term]
-  (= (type term)
-     logic.term.Atom))
+  (instance? logic.core.term.Atom term))
 
 
 (defn- unqote-atom-name

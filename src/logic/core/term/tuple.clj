@@ -16,7 +16,7 @@
 
 ;;  + unify:     Two tuples unify if they have the same number
 ;;               of terms and each pair or terms unify.
-(in-ns 'logic.term)
+(in-ns 'logic.core.term)
 
 
 (declare unify-tuple-and-term)
@@ -39,14 +39,13 @@
 (defn create-tuple
   "Creates a new Logic Tuple of ITerms."
   [terms]
-  (->Tuple (mapv create terms)))
+  (->Tuple (mapv create-term terms)))
 
 
 (defn tuple?
   "Tells whether the given Term is a Tuple."
   [term]
-  (= (type term)
-     logic.term.Tuple))
+  (instance? logic.core.term.Tuple term))
 
 
 (defn empty-tuple?

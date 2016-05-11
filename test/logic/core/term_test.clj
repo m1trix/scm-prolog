@@ -1,6 +1,6 @@
-(ns logic.term-test
-  (:use logic.env
-        logic.term
+(ns logic.core.term-test
+  (:use logic.core.env
+        logic.core.term
         clojure.test))
 
 
@@ -306,7 +306,7 @@
 
 (deftest test-rule
   (testing "#create-rule"
-    (is (= (create-rule "rule" ["atom" "Var"] [:fact "true" []])
+    (is (= (create-rule "rule" ["atom" "Var"] {:fact ["true" []]})
            (->Rule (->Fact (->Atom "rule")
                            (->Tuple [(->Atom "atom")
                                      (->Variable "Var")]))
@@ -318,17 +318,17 @@
            (.to-string
              (create-rule "rule"
                           ["atom1", "atom2"]
-                          [:fact "fact" ["atom1"]])
+                          {:fact ["fact" ["atom1"]]})
              (env-create)))))
 
   (testing "Calling #to-string, when the rule has variables"
     (let [env (-> (env-create)
-                  (env-set "X" (create "atom")))]
+                  (env-set "X" (create-atom "atom")))]
       (is (= "rule(atom) :- fact(atom, Y, atom)"
              (.to-string
                (create-rule "rule"
                             ["X"]
-                            [:fact "fact" ["X" "Y" "atom"]])
+                            {:fact ["fact" ["X" "Y" "atom"]]})
                env)))))
 
   (let [pool {"X" "NEW_X", "Y", "NEW_Y"}]
@@ -336,7 +336,7 @@
       (let [[result pool]
             (.generate
               (create-rule "rule" ["X", "Z"]
-                           [:fact "fact" ["atom", "Y", "X"]])
+                           {:fact ["fact" ["atom", "Y", "X"]]})
               pool)]
         (is (= result
                (->Rule (->Fact (->Atom "rule")
@@ -348,10 +348,10 @@
                                          (->Variable "NEW_X")]))))))))
 
   (let [test-rule-with-no-args
-        (create-rule "rule" [] [:fact "fact" ["Y" "X"]])
+        (create-rule "rule" [] {:fact ["fact" ["Y" "X"]]})
 
         test-rule-with-args
-        (create-rule "rule" ["X" "Y"] [:fact "fact" ["Y" "X"]])]
+        (create-rule "rule" ["X" "Y"] {:fact ["fact" ["Y" "X"]]})]
 
     (testing "Unifying a Rule and an Atom, when they cannot unify"
       (let [[unified? _]
@@ -383,3 +383,206 @@
         (is (env-bound? env "A" "X"))
         (is (= (create-atom "atom")
                (env-get env "Y")))))))
+
+
+(deftest null-term-test
+  (testing "#create & #null?"
+    (is (null? (create-null))))
+
+  (testing "#to-string"
+    (is (= "[]"
+           (.to-string (create-null)
+                       (env-create)))))
+
+  (testing "#generate"
+    (let [[new-term _]
+          (.generate (create-null)
+                     {})]
+      (is (null? new-term))))
+
+  (testing "Unifying a Null and a Variable"
+    (let [[unified? env]
+          (.unify (create-null)
+                  (create-var "X")
+                  (env-create))]
+      (is unified?)
+      (is (null? (env-get env "X")))))
+
+  (testing "Unifying two Nulls"
+    (let [[unified? env]
+          (.unify (create-null)
+                  (create-null)
+                  (env-create))]
+      (is unified?))))
+
+
+(deftest list-term-test
+  (testing "Creating an empty List"
+    (is (null? (create-list '()))))
+
+  (testing "Creating a List with no tail"
+    (is (= (create-list ["a" "b" "c"])
+           (->List (->Atom "a")
+                   (->List (->Atom "b")
+                           (->List (->Atom "c")
+                                   (->Null)))))))
+
+  (testing "Creating a List with a List for a tail"
+    (is (= (create-list ["a" "b" :| ["c" :| ["d" :| []]]])
+           (->List (->Atom "a")
+                   (->List (->Atom "b")
+                           (->List (->Atom "c")
+                                   (->List (->Atom "d")
+                                           (->Null))))))))
+
+  (testing "Creating a List with a Variable for a tail"
+    (is (= (create-list ["a" "b" :| ["c" :| "X"]])
+           (->List (->Atom "a")
+                   (->List (->Atom "b")
+                           (->List (->Atom "c")
+                                   (->Variable "X")))))))
+
+  (testing "Creating a List with composed Lists"
+    (is (= (create-list ["a" ["B"] [[]] :| []])
+           (->List (->Atom "a")
+                   (->List (->List (->Variable "B")
+                                   (->Null))
+                           (->List (->List (->Null)
+                                           (->Null))
+                                   (->Null)))))))
+
+  (testing "#to-string of an empty list"
+    (is (= "[]"
+           (.to-string (create-list [])
+                       (env-create)))))
+
+  (testing "#to-string of a List without a tail"
+    (is (= "[a, B, [], [c]]"
+           (.to-string 
+             (create-list ["a" "B" [] ["c"]])
+             (env-create)))))
+
+  (testing "#to-string of a List with a List for a tail"
+    (is (= "[a, B, [], c]"
+           (.to-string 
+             (create-list ["a" "B" [:|[]] :| ["c"]])
+             (env-create)))))
+
+  (testing
+    "
+      #to-string of a List with a Variable for a tail,
+      when the Variable has no value
+    "
+    (is (= "[a, B, [] | Tail]"
+           (.to-string 
+             (create-list (seq ["a" "B" [] :| "Tail"]))
+             (env-create)))))
+
+  (testing
+    "
+      #to-string of a List with a Variable for a tail,
+      when the Variable is an empty List
+    "
+    (is (= "[a, B, []]"
+           (.to-string 
+             (create-list '("a" "B" [] :| "Tail"))
+             (-> (env-create)
+                 (env-set "Tail" (create-list [])))))))
+
+  (testing
+    "
+      #to-string of a List with a Variable for a tail,
+      when the Variable is a non-empty List
+    "
+    (is (= "[a, B, [], c, D | Rest]"
+           (.to-string 
+             (create-list ["a" "B" [] :| "Tail"])
+             (env-set (env-create)
+                      "Tail"
+                      (create-list ["c" "D" :| "Rest"]))))))
+
+  (testing "#to-string of a List containing variables"
+    (is (= "[a, [A, C], [], c, D]"
+           (.to-string 
+             (create-list ["a" "B" [] :| "E"])
+             (-> (env-create)
+                 (env-set "B" (create-list ["A" "C"]))
+                 (env-set "E" (create-list ["c" "D"])))))))
+
+  (testing "Unifying empty lists"
+    (is (true?
+          (-> (.unify (create-list [])
+                      (create-list [])
+                      (env-create))
+              first))))
+
+  (testing "Unifying non-empty lists"
+    (let [[unified? env]
+          (.unify (create-list ["a" "B"])
+                  (create-list ["B" "A"])
+                  (env-create))]
+    (is unified?)
+    (is (= (create-atom "a")
+           (env-get env "B")))))
+
+  (testing "Unifying lists where one has variable tail"
+    (let [[unified? env]
+          (.unify (create-list ["a" "b" :| "C"])
+                  (create-list ["a" "b" "c" "d"])
+                  (env-create))]
+    (is unified?)
+    (is (= (create-list ["c" "d"])
+           (env-get env "C")))))
+
+  (testing "Unifying lists where sizes are different"
+    (let [[unified? env]
+          (.unify (create-list ["a" "b"])
+                  (create-list ["a" "b" "c"])
+                  (env-create))]
+    (is (not unified?))))
+
+  (testing "Unifying lists where a pair ot terms don't unify"
+    (let [[unified? env]
+          (.unify (create-list ["a" "c"])
+                  (create-list ["a" "b" "c"])
+                  (env-create))]
+    (is (not unified?))))
+
+  (testing "Unifying a List and a Variable"
+    (let [[unified? env]
+          (.unify (create-var "X")
+                  (create-list ["a" "b"])
+                  (env-create))]
+    (is unified?)
+    (is (= (create-list ["a" "b"])
+           (env-get env "X"))))))
+
+
+(deftest test-create
+  (testing "Creating Atoms"
+    (is (= (create-atom "a")
+           (create-term "a")))
+    (is (= (create-atom "'a & %'")
+           (create-term "'a & %'"))))
+
+  (testing "Creating Variables"
+    (is (= (create-var "V")
+           (create-term "V"))))
+
+  (testing "Creating Lists"
+    (is (= (create-list [])
+           (create-term [])))
+    (is (= (create-list '())
+           (create-term '())))
+    (is (= (create-list (seq ["a"]))
+           (create-term (seq ["a"])))))
+
+  (testing "Creating Facts"
+    (is (= (create-fact "fact" ["a" "V"])
+           (create-term {:fact ["fact" ["a" "V"]]}))))
+
+  (testing "Creating Rules"
+    (is (= (create-rule "rule" ["a" "V"]
+             {:fact ["fact" []]})
+           (create-term {:rule ["rule" ["a" "V"]
+                                {:fact ["fact" []]}]})))))

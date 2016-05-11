@@ -15,7 +15,7 @@
   [number pool]
   number)
 
-(defmethod calculate logic.term.Variable
+(defmethod calculate logic.term.PrologVariable
   [var pool]
   (let [val (extract var pool)]
     (if (or (set? val)
@@ -23,7 +23,7 @@
       (throw (Exception. (str "Cannot evaluate unbound Variable \"" (:name var) "\".")))
       (calculate val pool))))
 
-(defmethod calculate logic.term.Fact
+(defmethod calculate logic.term.PrologFact
   [fact pool]
   (let [name (-> fact :atom :name)
         target (built-in-math name)]
@@ -33,9 +33,9 @@
         (if (empty? all)
           (throw (Exception. (str "No operator matches \"" name "\".")))
           (let [form (first all)
-                new-fact (->Fact (:atom fact)
-                                 (->Tuple (mapv #(calculate % pool)
-                                                (-> fact :tuple :terms))))
+                new-fact (->PrologFact (:atom fact)
+                                       (->PrologArguments (mapv #(calculate % pool)
+                                                                (-> fact :args :args))))
                 [status new-term _] (resolve new-fact form pool)]
             (if (true? status)
               new-term
@@ -64,7 +64,7 @@
 
 
 (defn math-unify [[left right] pool]
-  (let [[new-term new-pool] (obsolete-unify left right pool)]
+  (let [[new-term new-pool] (unify left right pool)]
     (if (false? new-term)
       [false pool]
       [new-term new-pool])))
@@ -77,8 +77,8 @@
    (let [[answer _] (math-unify [left (calculate right pool)] pool)]
      [answer pool])
 
-   (variable? left)
-   (obsolete-unify left (calculate right pool) pool)
+   (prolog-variable? left)
+   (unify left (calculate right pool) pool)
 
    :else
    [false pool]))
@@ -144,4 +144,3 @@
     ">=" [(create [:form "'>='" ["Left" "Right"] math-more-eq])]
     "=\\=" [(create [:form "'=\\='" ["Left" "Right"] math-not-eq])]
     "=:=" [(create [:form "'=:='" ["Left" "Right"] math-eq])]})
-

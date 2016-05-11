@@ -24,7 +24,7 @@
 ;;               values, then the values are unified, otherwise
 ;;               the variables are bound together.
 
-(in-ns 'logic.term)
+(in-ns 'logic.core.term)
 
 
 (def var-name-pattern #"^(?:_)|(?:[A-Z]\w*)$")
@@ -50,10 +50,11 @@
 (defn valid-var-name?
   "Tells whether the name can be used as a Logic Variable."
   [name]
-  (-> var-name-pattern 
-      (re-matches name)
-      nil?
-      not))
+  (and (string? name)
+       (-> var-name-pattern 
+           (re-matches name)
+           nil?
+           not)))
 
 
 (defn- var-ensure-name
@@ -76,8 +77,21 @@
 (defn variable?
   "Tells whether the given instance is a Logic Variable."
   [term]
-  (= (type term)
-     logic.term.Variable))
+  (instance? logic.core.term.Variable term))
+
+
+(defn evaluate-var
+  [var term env]
+  (env-set
+    env
+    (:name var)
+    term))
+
+
+(defn get-var-value
+  [var env]
+  (env-get env (:name var)))
+
 
 (defn- var->string
   "Returns the string representation of the variable inside the environment"
@@ -126,12 +140,6 @@
               right-value
               env))))
 
-
-(defn evaluate-var
-  [var term env]
-  (env-set env
-           (:name var)
-           term))
 
 
 (defn unify-var-and-term

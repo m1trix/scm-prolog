@@ -1,1 +1,0 @@
-(ns logic.core-test)

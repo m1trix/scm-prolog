@@ -1,5 +1,5 @@
-(ns logic.env-test
-  (:use logic.env
+(ns logic.core.env-test
+  (:use logic.core.env
         clojure.test))
 
 (deftest test-environment

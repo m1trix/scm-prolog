@@ -132,25 +132,25 @@
 
 
 (defn extract-atom
-  "Creates a Logic Atom from a string.
+  "Creates a PrologAtom from a string.
   Returns: [<atom>, <rest_of_string>].
   Returns: [nil, <input_string>], if there is no Atom."
   [input]
-  (let [[name result] (find-atom input)]
-    (if (= "" name)
+  (let [[atom result] (find-atom input)]
+    (if (= "" atom)
       [nil input]
-      [(create-atom name) result])))
+      [(create atom) result])))
 
 
 (defn extract-variable
-  "Creates a Variable from a string.
+  "Creates a PrologVariable from a string.
   Returns: [<variable>, <rest_of_string>]
   Returns: [nil, <input_string>], if there is no Variable."
   [input]
   (let [[var result] (find-variable input)]
     (if (= "" var)
       [nil input]
-      [(create-var var) result])))
+      [(create var) result])))
 
 
 (defn extract-list
@@ -223,7 +223,7 @@
        (= \) (first text))
        (if check-arg
          (throw (Exception. (str "Missing argument: \"" (last args) ", \" (here) .")))
-         [(create-tuple args) (subs text 1)])
+         [(create-arguments args) (subs text 1)])
 
        (= \[ (first text))
        (if (false? check-arg)
@@ -246,7 +246,7 @@
     (if atom
       (let [[args fact-text] (extract-arguments atom-text)]
         (if args
-          [(->Fact atom args) fact-text]
+          [(->PrologFact atom args) fact-text]
           result))
 
       (let [[parsed-list text-after-list] (extract-list text)]
@@ -349,7 +349,7 @@
      (conj rest-obs (->PrologNegation (first terms)))
 
      (= ":-" (-> op :op :name))
-     (conj rest-obs (->Rule (first terms)
+     (conj rest-obs (->PrologRule (first terms)
                                   (second terms)))
 
      :else (conj rest-obs (make-fact (:op op) terms)))))

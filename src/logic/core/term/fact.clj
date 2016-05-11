@@ -16,7 +16,7 @@
 ;;  + unify:     Two fact unify if their Atoms unify and if
 ;;               their Tuples unify.
 
-(in-ns 'logic.term)
+(in-ns 'logic.core.term)
 
 
 (declare unify-fact-and-term)
@@ -46,7 +46,7 @@
 (defn fact?
   "Tells whether the given instance is a Fact."
   [term]
-  (instance? logic.term.Fact term))
+  (instance? logic.core.term.Fact term))
 
 
 (defn- fact->string
