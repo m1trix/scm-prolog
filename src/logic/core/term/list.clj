@@ -1,28 +1,26 @@
 ;;  LIST
 ;;  ====
 
-;;  - head: A list of Terms.
+;;  - head: The first Term of the List.
 
-;;  - tail: The remaining Terms. It could be another List, a Variable
-;;          or Null.
+;;  - tail: The Sublist containing all remaining Terms or a Variable.
+;;          The Null is considered an empty List.
 
 ;;  + to-string: The string representation of the List - comma separated
-;;               string representations of the terms surrounded by brackets.
-;;               If the tail is Null, it's not included: [1, atom, Var]
-;;               If the tail is a Variable, it's separated by a verical
-;;               bar: [atom1, atom2 | Tail]
-;;               If the tail is another List, the string representation
-;;               contains all head elements and the tail of the other:
-;;               List: [1, 2, 3 | [1, [2, 3] | Rest]] will be represented as
-;;               [1, 2, 3, 1, [2, 3] | Rest].
+;;               string representations of the head and all remaining
+;;               Terms reachable from the tail, surrounded by brackets:
+;;               [1, atom, Variable, "string"]
+;;
+;;               If the tail is a Variable with a value, the value
+;;               is used to continue the string representation. If the
+;;               variable has no value, then the variable is separated
+;;               from the Terms with a '|' : [1, 2, 3 | Tail]
 
-;;  + generate:  Returns a new List, where all the head elements are
-;;               newly generated using the same names pool and the tail
-;;               is also generated.
+;;  + generate:  Returns a new List, where all the head and the tail are
+;;               newly generated using the provided names pool.
 
-;;  + unify:     Two Lists unify if each pair of Terms thei contain unify.
-;;               If one of the lists has a Variable tail it is unified with
-;;               the entire sublist of the other List.
+;;  + unify:     Two Lists unify if their heads unify and their tails unify.
+;;               A Variable unifies to a List, by excepting it as a value. 
 
 (in-ns 'logic.core.term)
 
@@ -77,21 +75,22 @@
 (defn- ensure-valid-list-form
   [forms]
   (when-not (valid-list-form? forms)
-    (throw-illegal-arg
-      (-> "Cannot create a List instance from: %s"
-          (format forms)))))
+    (-> "Cannot create a List instance from: %s"
+        (format forms)
+        throw-illegal-arg)))
 
 
 (defn- ensure-valid-tail-form
   [form]
   (cond
     (empty? form)
-    (throw-illegal-arg "A List cannot have an empty tail: [... :| (HERE) ]")
+    (throw-illegal-arg
+      "A List cannot have an empty tail: [... :| (HERE) ]")
 
     (-> form next empty? not)
-    (throw-illegal-arg
-      (-> "A List can have only a single tail Term: [ ... :| (HERE) %s]"
-        (format (clojure.string/join " " form))))))
+    (-> "A List can have only a single tail Term: [ ... :| (HERE) %s]"
+      (format (clojure.string/join " " form))
+      throw-illegal-arg)))
 
 
 (defn- create-list-tail
@@ -116,10 +115,15 @@
          terms []]
     (cond
       (empty? forms)
-      (list-from-vector terms (create-null))
+      (list-from-vector
+        terms
+        (create-null))
 
       (= :| (first forms))
-      (list-from-vector terms (-> forms rest create-list-tail))
+      (list-from-vector
+        terms
+        (-> forms rest
+                  create-list-tail))
 
       :else
       (recur (next forms)
@@ -175,6 +179,14 @@
                (tail-from-env next env))))))
 
 
+(defn- unify-heads
+  [left right env]
+  (.unify
+    (:head left)
+    (:head right)
+    env))
+
+
 (defn- unify-lists
   [left right env]
   (loop [left left
@@ -193,9 +205,7 @@
 
       :else
       (let [[unified? env]
-            (.unify (:head left)
-                    (:head right)
-                    env)]
+            (unify-heads left right env)]
         (if (not unified?)
           [false nil]
           (recur (tail-from-env left env)
@@ -216,6 +226,11 @@
     [false env]))
 
 
+(defn- generate-head
+  [list pool]
+  (.generate (:head list) pool))
+
+
 (defn- generate-list
   [list pool]
   (loop [result []
@@ -223,14 +238,16 @@
          pool pool]
     (cond
       (variable? next)
-      [(list-from-vector result next) pool]
+      (let [[new-var pool]
+            (.generate next pool)]
+        [(list-from-vector result new-var) pool])
 
       (empty-list? next)
       [(list-from-vector result (create-null)) pool]
 
       :else
-      (let [[next pool]
-            (.generate (:head list) pool)]
-        (recur (conj result next)
-               (tail-from-env list)
+      (let [[new-head pool]
+            (generate-head next pool)]
+        (recur (conj result new-head)
+               (:tail next)
                pool)))))

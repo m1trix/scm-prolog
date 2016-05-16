@@ -555,7 +555,29 @@
                   (env-create))]
     (is unified?)
     (is (= (create-list ["a" "b"])
-           (env-get env "X"))))))
+           (env-get env "X")))))
+
+  (let [pool {"X" "VAR_X", "Y" "VAR_Y"}]
+    (testing "Generating an empty List"
+      (let [[result _]
+            (.generate (create-list []) pool)]
+        (is (= (create-list []) result))))
+
+    (testing "Generating a List of non-repeated Variables"
+      (let [[result _]
+            (.generate
+              (create-list ["atom" "X" :| "Y"])
+               pool)]
+        (is (= (create-list ["atom" "VAR_X" :| "VAR_Y"])
+               result))))
+
+    (testing "Generating a List containing repeated Variables"
+      (let [[result _]
+            (.generate
+              (create-list ["atom" "X" "Y" :| "X"])
+               pool)]
+        (is (= (create-list ["atom" "VAR_X" "VAR_Y" :| "VAR_X"])
+               result))))))
 
 
 (deftest test-create
