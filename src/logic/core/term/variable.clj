@@ -1,29 +1,3 @@
-;;  VARIABLE
-;;  ========
-
-;;  - name: A string, starting with a capital letter.
-;;          Contains small letters, capital letters, digits,
-;;          and underscores: Variable, VAR_123a.
-;;          It could also be a single underscore, meaning
-;;          that the variable has a random name nad it's
-;;          not used anywhere: _.
-
-;;  + to-string: The string representation of the variable
-;;               inside the given environment. If it does
-;;               not have a value - the name is used. Otherwise,
-;;               the #to-string method of the value is called.
-
-;;  + generate:  Generates a new Variable instance.
-;;               The new name is taken from the pool of
-;;               names (if an entry exists), or a new
-;;               name is generated and then added to the pool.
-
-;;  + unify:     Tries to unify the variable with the given
-;;               term. If the term is not a Variable,
-;;               false is returned. If both variables have
-;;               values, then the values are unified, otherwise
-;;               the variables are bound together.
-
 (in-ns 'logic.core.term)
 
 
@@ -35,7 +9,7 @@
 (declare generate-var)
 
 
-(defrecord Variable [name]
+(defrecord Variable [^String name]
   ITerm
   (to-string [this env]
     (var->string this env))
@@ -48,39 +22,66 @@
 
 
 (defn valid-var-name?
-  "Tells whether the name can be used as a Logic Variable."
+  "
+  Tells whether the name can be used as a Logic Variable.
+  A valid variable name starts with a capital letter A-Z and contains
+  only letters, numbers or underscores.
+
+  '_' is also a valid Variable name and it means
+  that the Variable has a random name.
+
+  @return
+    True if the name is valid, false otherwise.
+  "
   [name]
-  (and (string? name)
-       (-> var-name-pattern 
-           (re-matches name)
-           nil?
-           not)))
+  (and
+    (string? name)
+    (truthy?
+      (re-matches
+        var-name-pattern
+        name))))
 
 
 (defn- var-ensure-name
-  "Ensures that the given name could be used as a Logic Variable name."
   [name]
   (when-not (valid-var-name? name)
-    (-> "Invalid Logic Variable name '%s'"
+    (->
+      "Invalid Logic Variable name '%s'"
       (format name)
-      (IllegalArgumentException.)
-      (throw))))
+      illegal-argument)))
 
 
 (defn create-var
-  "Creates a new Logic Variable."
+  "
+  @return
+    A new Variable instance with the given name.
+  @throws
+    IllegalArgumentException If that name is invalid.
+  "
   [name]
   (var-ensure-name name)
   (->Variable name))
 
 
-(defn variable?
-  "Tells whether the given instance is a Logic Variable."
+(defn var-term?
+  "
+  @return
+    True if the given instance is a Variable, false otherwise.
+  "
   [term]
-  (instance? logic.core.term.Variable term))
+  (instance?
+    logic.core.term.Variable
+    term))
 
 
-(defn evaluate-var
+(defn set-var-value
+  "
+  Binds the given Term as a value of the Variable inside the environment,
+  overwritting any existing values.
+
+  @return
+    A new environment with the rebound Variable.
+  "
   [var term env]
   (env-set
     env
@@ -89,20 +90,43 @@
 
 
 (defn get-var-value
+  "
+  @return
+    The value from the environment, that is bound to that Variable.
+    If no value is bound, then nil is returned.
+  "
   [var env]
-  (env-get env (:name var)))
+  (env-get
+    env
+    (:name var)))
 
 
 (defn- var->string
-  "Returns the string representation of the variable inside the environment"
+  "
+  @return
+    The string representation of the Variable inside the environment:
+    If the Variable has value bound to it, then its name is returned.
+    The result of #to-string of the value is returned otherwise.
+  "
   [var env]
-  (let [value (env-get env (:name var))]
-    (if (nil? value)
-      (:name var) 
-      (.to-string value env))))
+  (if-let [value (get-var-value var env)]
+    (.to-string value env)
+    (:name var)))
 
 
 (defn- generate-var
+  "
+  Generates a new Variable instance from the given one.
+  1. If the given one is a random Variabe (name is '_'),
+     then a unique name is generated.
+  2. If the name of the Variable is not mapped to a name in the pool,
+     a new name is generated and stored in the pool.
+  3. If the name of the Variable is mapped to a name in the pool,
+     that name is used and no new names are generated.
+
+  @return
+    The newly generated Variable and the new pool of names.
+  "
   [var pool]
   (let [name (:name var)
         new-name (-> '_V gensym str)
@@ -119,38 +143,60 @@
       [(->Variable pool-name) pool])))
 
 
+(defn- bind-variables
+  [left right env]
+  (env-bind
+    env
+    (:name left)
+    (:name right)))
+
+
 (defn- unify-variables
   [left right env]
-  (let [left-value
-        (env-get env (:name left))
-
-        right-value
-        (env-get env (:name right))]
+  (let [l-value (get-var-value left env)
+        r-value (get-var-value right env)]
     (cond
-      (nil? left-value)
-      [true (env-bind env
-                     (:name left)
-                     (:name right))]
-      (nil? right-value)
-      [true (env-bind env
-                      (:name right)
-                      (:name left))]
+      (nil? l-value)
+      (bind-variables left right env)
+
+      (nil? r-value)
+      (bind-variables right left env)
+
       :else
-      (.unify left-value
-              right-value
-              env))))
+      (.unify l-value r-value env))))
 
 
+(defn try-unify-with-var
+  "
+  Attemt to unify the Variable and the Term inside the environment.
+  If the Variable has a value, then the value and the Term are unified.
+  Otherwise, the Term becomes the value of the Variable.
 
-(defn unify-var-and-term
+  @return
+    The result environment, or nil if the Variable already has a value
+    and that value does not unify with the Term.
+  "
   [var term env]
-  (let [value (env-get env (:name var))]
-    (cond
-      (variable? term)
-      (unify-variables var term env)
-      
-      (nil? value)
-      (.unify term var env)
+  (if-let [value (get-var-value var env)]
+    (.unify value term env)
+    (set-var-value var term env)))
 
-      :else
-      (.unify value term env))))
+
+(defn- unify-var-and-term
+  "
+  A Variable unifies with a Term in the following cases:
+  1. The variable has a value in the environment:
+     The value is unified with the Term.
+  2. The Term is not a Variable:
+     The Term is insteam unified with the Variable.
+  3. The Term is a Variable:
+     If both have values, the values are unified.
+     Otherwise the Variables are bound together.
+
+  @return
+    A new environemt with different bindings, or nil if not unified.
+  "
+  [var term env]
+  (if (var-term? term)
+    (unify-variables var term env)
+    (.unify term var env)))

@@ -1,24 +1,3 @@
-;;  RULE
-;;  ====
-
-;;  - head: A Fact that is to be proved.
-
-;;  - body: The Term that should be true.
-
-;;  + to-string: The string representation of the rule
-;;               inside the given environment. A Rule is
-;;               represented by its head and its body,
-;;               separated by ':-' :
-;;               fact(Var) :- fact2(Var, atom).
-
-;;  + generate:  Generates a new Rule instance by generating
-;;               its head and its body.
-
-;;  + unify:     A Rule can be unified to a Fact, if its head
-;;               unifies with the Fact.
-;;               A Rule can be unified to an Atom, if its head
-;;               unifies with the Atom.
-
 (in-ns 'logic.core.term)
 
 
@@ -40,20 +19,32 @@
 
 
 (defn create-rule
-  "Creates a new Rule."
+  "
+  @return
+    A new instance of a Rule.
+    The parameters and the body are automatically created
+    based on the given values.
+  "
   [name parameters body]
   (->Rule (create-fact name parameters)
           (create-term body)))
 
 
-(defn rule?
-  "Tells whether the given instance is a Rule."
+(defn rule-term?
+  "
+  @return
+    True if the given object is an intance of a Rule.
+    False otherwise.
+  "
   [term]
   (instance? logic.core.term.Rule term))
 
 
 (defn- rule->string
-  "Returns the string representation of the Rule inside the environment."
+  "@return
+    The string representation of the Rule inside the environment:
+    <name>([<arg1>[, <arg2>[, ...]]]) :- <body>
+  "
   [rule env]
   (format
     "%s :- %s"
@@ -62,6 +53,13 @@
 
 
 (defn- generate-rule
+  "
+  @return
+    A newly generated Rule instance.
+    All the Terms that are parmeters or inside the body
+    that have the same name in the original Rule will have
+    the same names in the new Rule.
+  "
   [rule pool]
   (let [[new-head pool]
         (.generate (:head rule) pool)
@@ -72,10 +70,18 @@
     [(->Rule new-head new-body) pool]))
 
 
-(defn unify-rule-and-term
-  "Tries to unify the Rule with the Term inside the environment."
+(defn- unify-rule-and-term
+  "
+  Tries to unify the given Rule with the given Term
+  inside the given environment. A Rule can only be
+  unified with a Fact or an Atom.
+
+  @return
+    The new environment if the two Terms unify.
+    Nil othewise.
+  "
   [rule term env]
-  (if (or (fact? term)
-          (atom? term))
-    (.unify (:head rule) term env)
-    [false env]))
+  (and
+    (or (fact-term? term)
+        (atom-term? term))
+    (.unify (:head rule) term env)))

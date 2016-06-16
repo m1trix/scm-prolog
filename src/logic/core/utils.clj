@@ -15,3 +15,12 @@
     (concat
       (first seq)
       (deep-concat (next seq)))))
+
+(defn falsy?
+  [what]
+  (or (nil? what)
+      (false? what)))
+
+(defn truthy?
+  [what]
+  (-> what falsy? not))

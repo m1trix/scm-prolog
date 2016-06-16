@@ -1,5 +1,6 @@
 (ns logic.core.term
-    (:use logic.core.env))
+  (use logic.core.env
+       logic.core.utils))
 
 
 (defprotocol ITerm
@@ -8,7 +9,7 @@
   (unify [this other env]))
 
 
-(declare create-term fact?)
+(declare create-term fact-term?)
 
 
 (load "term/variable")

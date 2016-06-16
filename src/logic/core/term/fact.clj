@@ -1,21 +1,3 @@
-;;  FACT
-;;  ====
-
-;;  - atom:  An Atom that represents the name of the Fact.
-
-;;  - tuple: The parameters of the Fact.
-
-;;  + to-string: The string representation of the fact
-;;               inside the given environment. A Fact is
-;;               represented by its Atom and its Tuple:
-;;               'example name'(parameter1, PARAMETER2)
-
-;;  + generate:  Generates a new Fact instance by generating
-;;               its Atom and its Tuple.
-
-;;  + unify:     Two fact unify if their Atoms unify and if
-;;               their Tuples unify.
-
 (in-ns 'logic.core.term)
 
 
@@ -37,26 +19,46 @@
 
 
 (defn create-fact
-  "Creates a new Fact."
+  "
+  @return
+    A new instance of a Fact.
+    All Term parameters are automatically created based on the given values.
+  "
   [name parameters]
   (->Fact (create-atom name)
           (create-tuple parameters)))
 
 
-(defn fact?
-  "Tells whether the given instance is a Fact."
+(defn fact-term?
+  "
+  @return
+    True if the given object is an instance of a Fact.
+    False otherwise.
+  "
   [term]
-  (instance? logic.core.term.Fact term))
+  (instance?
+    logic.core.term.Fact
+    term))
 
 
 (defn- fact->string
-  "Returns the string representation of the fact inside the environment."
+  "
+  @return
+    The string representation of the Fact:
+    <name>([<arg1>[, <arg2> [, ...]]])
+  "
   [fact env]
   (str (.to-string (:atom fact) env)
        (.to-string (:tuple fact) env)))
 
 
 (defn- generate-fact
+  "
+  @return
+    A newly generated Fact instance.
+    All parameter Terms that have the same name in the original Tuple
+    will have the same names in the new Tuple.
+  "
   [fact pool]
   (let [[new-tuple pool]
         (.generate (:tuple fact) pool)]
@@ -66,36 +68,53 @@
 
 
 (defn unify-facts
-  "Tries to unify the two facts inside the environment."
+  "
+  Tries to unify the two Facts inside the given environment.
+  Two Facts unify if their names unify and their parameters unify.
+
+  @return
+    The new environment if the given Facts unify.
+    Nil otherwise.
+  "
   [left right env]
-  (let [[names-unify? env]
-        (.unify (:atom left)
-                (:atom right)
-                env)]
-    (if (not names-unify?)
-      [false env]
-      (.unify (:tuple left)
-              (:tuple right)
-              env))))
+  (and
+    (.unify (:atom left)
+            (:atom right)
+            env)
+    (.unify (:tuple left)
+            (:tuple right)
+            env)))
 
 
 (defn unify-fact-and-atom
-  "Ties to unify the term with the atom inside the environment."
+  "
+  Tries to unify the given Fact with the given Atom inside the given environment.
+  A Fact and an Atom unify only if their names unify and if the Fact
+  has no parameters.
+
+  @return
+    The new environment if the two Terms unify.
+    False otherwise. 
+  "
   [term atom env]
-  (if-not (-> term :tuple empty-tuple?)
-    [false env]
-    (.unify (:atom term) atom env)))
+  (and (-> term :tuple empty-tuple?)
+       (.unify (:atom term) atom env)))
 
 
 (defn unify-fact-and-term
-  "Tries to unify the Fact with the Term inside the environment."
+  "
+  Tries to unify the given Fact with the given Term
+  inside the given environment.
+  A Fact can only be unified with an Atom or with another Fact.
+
+  @return
+    The new environment if the two Terms unify.
+    Nil otherwise.
+  "
   [fact term env]
   (cond
-    (fact? term)
+    (fact-term? term)
     (unify-facts fact term env)
 
-    (atom? term)
-    (unify-fact-and-atom fact term env)
-
-    :else
-    [false env]))
+    (atom-term? term)
+    (unify-fact-and-atom fact term env)))

@@ -1,19 +1,3 @@
-;;  ATOM
-;;  ====
-
-;;  - name: A string, starting with a small letter and containing
-;;          small letters, capital letters, digits and underscores:
-;;          atom, aTOM.
-;;          It could also be quoted in ingle quotes and can
-;;          contain any symbols: 'atom @123 '
-
-;;  + to-string: The string representation of the atom - it's name.
-
-;;  + generate:  Atoms cannot be generated. The same atom is returned.
-
-;;  + unify:     Two atoms unify if their names are the same, when
-;;               unqoted.
-
 (in-ns 'logic.core.term)
 
 
@@ -22,17 +6,28 @@
 
 (declare unify-atom-and-term)
 
-(defrecord Atom [name] ITerm
-  (to-string [this _] (:name this))
-  (generate [this pool] [this pool])
+(defrecord Atom [name]
+  ITerm
+  (to-string [this _]
+    (:name this))
+
+  (generate [this pool]
+    [this pool])
+
   (unify [this other env]
-    (unify-atom-and-term this
-                         other
-                         env)))
+    (unify-atom-and-term this other env)))
 
 
 (defn valid-atom-name?
-  "Checks whther the name is a valid Logic Atom name."
+  "
+  Tells whether the given string is a valid Atom name.
+  Atom names can start with a small letter: atom, aTom, aT0m.
+  Atom names can also be single qouted. This enables them
+  to contain any kinds of symbols: 'atom with spaces!'.
+
+  @return
+    True if the name is a valid Atom name, false otherwise.
+  "
   [name]
   (and
     (string? name)
@@ -41,55 +36,77 @@
 
 
 (defn- ensure-valid-atom-name
-  "Ensures that the given name could be used as a Logic Atom name."
   [name]
   (when-not (valid-atom-name? name)
-    (-> "Invalid Logic Atom name '%s'"
+    (->
+      "Invalid Logic Atom name '%s'"
       (format name)
-      IllegalArgumentException.
-      throw)))
+      illegal-argument)))
 
 
 (defn create-atom
-  "Creates a new Logic Atom."
+  "
+  @return
+    A new Atom instance of the given name.
+  @throws
+    InvalidArgumentException if the string is invalid Atom name.
+  "
   [name]
   (ensure-valid-atom-name name)
   (->Atom name))
 
 
-(defn atom?
-  "Tells whether the given instance is a Logic Atom."
+(defn atom-term?
+  "
+  @return
+    True if the given object is an instance of an Atom.
+    False otherwise.
+  "
   [term]
-  (instance? logic.core.term.Atom term))
+  (instance?
+    logic.core.term.Atom
+    term))
 
 
 (defn- unqote-atom-name
-  "Returns the unqoted name of the Logic Atom."
+  "
+  @return
+    The name of the Atom, when unqouted (the same name initially unqouted).
+  "
   [name]
   (let [matches (re-matches atom-quoted-name-pattern name)]
-    (if (empty? matches)
-      name
-      (second matches))))
+    (if-not (empty? matches)
+      (second matches)
+      name)))
 
 
 (defn- same-atom-names?
-  "Returns true if the two atom names can be unified, false otherwise."
+  "
+  @return
+    True if the two Atom names unify.
+    False otherwise."
   [left right]
   (= (-> left :name unqote-atom-name)
      (-> right :name unqote-atom-name)))
 
 
-(defn unify-atom-and-term
+(defn- unify-atom-and-term
+  "
+  Tries to unify the given Atom with the given Term
+  inside the given environment.
+
+  @return
+    The new environment, if the two terms unify.
+    Nil otherwise.
+  "
   [atom term env]
   (cond
-    (variable? term)
-    [true (evaluate-var term atom env)]
+    (var-term? term)
+    (try-unify-with-var term atom env)
 
-    (atom? term)
-    [(same-atom-names? atom term) env]
-
-    (fact? term)
+    (fact-term? term)
     (.unify term atom env)
 
-    :else
-    [false env]))
+    (and (atom-term? term)
+         (same-atom-names? atom term))
+    env))

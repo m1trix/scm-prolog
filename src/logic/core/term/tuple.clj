@@ -1,21 +1,3 @@
-;;  TUPLE
-;;  =====
-
-;;  - terms: A vector containing Logic ITerm-s.
-
-;;  + to-string: The string representation of a tuple is
-;;               the string representations of all the terms
-;;               separated by a comma and surrounded in
-;;               brackets: (atom, Variable)
-
-;;  + generate:  Generates a new Tuple instance, where
-;;               all the terms are also generated using the
-;;               same names pool. All variables with the same
-;;               name will continue to have the same name
-;;               after that.
-
-;;  + unify:     Two tuples unify if they have the same number
-;;               of terms and each pair or terms unify.
 (in-ns 'logic.core.term)
 
 
@@ -37,79 +19,97 @@
 
 
 (defn create-tuple
-  "Creates a new Logic Tuple of ITerms."
+  "
+  @return
+    A new Tuple instance. All the Terms are created automatically
+    based on the given values.
+  "
   [terms]
   (->Tuple (mapv create-term terms)))
 
 
-(defn tuple?
-  "Tells whether the given Term is a Tuple."
+(defn tuple-term?
+  "
+  @return
+    True if the given object is an instance of a Tuple.
+    False otherwise.
+  "
   [term]
-  (instance? logic.core.term.Tuple term))
+  (instance?
+    logic.core.term.Tuple
+    term))
 
 
 (defn empty-tuple?
-  "Tells whether the given Tuple is empty."
+  "
+  @return
+    True if the given Tuple is empty.
+    False otherwise.
+  "
   [tuple]
   (-> tuple :terms empty?))
 
 
 (defn- unify-tuple-sizes
-  "Tells whether the sizes of the two tuples are the same."
+  "
+  @return
+    True if the sizes of the given tuples are the same.
+    False otherwise.
+  "
   [left right]
   (= (-> left :terms count)
      (-> right :terms count)))
 
 
-(defn- zip-tuples
-  "Zips the terms of the two tuples."
-  [left right]
-  (map vector
-       (:terms left)
-       (:terms right)))
-
-
-(defn- unify-pair
-  "Unifies a pair of ITerm-s."
-  [[left right] env]
-  (.unify left right env))
-
-
 (defn- unify-tuples-elements
-  "Tells whether each pair of terms from the two tuples unify."
-  [left right initial-env]
-  (loop [pairs (zip-tuples left right)
-         env initial-env]
-    (if (empty? pairs)
-      [true env]
-      (let [[unified? env]
-            (unify-pair (first pairs) env)]
-        (if (not unified?)
-          [false initial-env]
-          (recur (next pairs) env))))))
+  "
+  Tells whether each pair of terms from the two tuples unify.
+  It's important that both tuples have the same sizes.
+
+  @return
+    The new environment if each pair of Terms unify.
+    Nil otherwise.
+  "
+  [left right env]
+  (loop [left (:terms left)
+         right (:terms right)
+         env env]
+    (if (empty? left)
+      env
+      (when-let [env (.unify (first left)
+                             (first right)
+                             env)]
+        (recur (next left)
+               (next right)
+               env)))))
 
 
 (defn- unify-tuples
-  "Tells whether the two tuples unify."
+  "
+  @return
+    The new environment if the Tuples unify.
+    Nil otherwise.
+  "
   [left right env]
-  (if-not (unify-tuple-sizes left right)
-    [false env]
-    (unify-tuples-elements
-      left
-      right
-      env)))
+  (and (unify-tuple-sizes left right)
+       (unify-tuples-elements left right env)))
 
 
 (defn- unify-tuple-and-term
-  "Tries to unify"
+  "
+  A Tuple can only be unified with another Tuple.
+  "
   [left right env]
-  (if (tuple? right)
-    (unify-tuples left right env)
-    [false env]))
+  (and (tuple-term? right)
+       (unify-tuples left right env)))
 
 
 (defn- tuple->string
-  "Returns the string representation of the Tuple."
+  "
+  @return
+    The string representation of the Tuple:
+    ([<arg1>[, <arg2>[, ...]]])
+  "
   [tuple env]
   (->> (:terms tuple)
        (map #(.to-string % env))
@@ -117,23 +117,20 @@
        (format "(%s)")))
 
 
-(defn- generate-next-term
-  [[result pool] terms]
-  (let [[term pool]
-        (.generate (first terms) pool)]
-    [(conj result term) pool]))
-
-
 (defn- generate-tuple
-  "Returns a newly generated Tuple."
+  "
+  @return
+    A newly generated Tuple instance.
+    All Terms with the same name in the original Tuple
+    will have the same names in the new Tuple.
+  "
   [tuple pool]
   (loop [result []
          terms (:terms tuple)
          pool pool]
     (if (empty? terms)
       [(->Tuple result) pool]
-      (let [term (first terms)
-            [term pool] (.generate term pool)
-            result (conj result term)
-            terms (next terms)]
-        (recur result terms pool)))))
+      (let [[term pool] (.generate (first terms) pool)]
+        (recur (conj result term)
+               (next terms)
+               pool)))))

@@ -1,23 +1,30 @@
 (ns logic.core.term-test
   (:use logic.core.env
         logic.core.term
+        logic.core.utils
         clojure.test))
 
 
 (deftest test-variable
-  (testing "#create-var"
+  (testing "Creating random variable"
     (is (= (->Variable "_")
-           (create-var "_")))
+           (create-var "_"))))
+
+  (testing "Creating a variable with letters for name"
     (is (= (->Variable "Variable")
-           (create-var "Variable")))
+           (create-var "Variable"))))
+
+  (testing "Creating a variable for all kinds of symbols for name"
     (is (= (->Variable "Aa1_")
-           (create-var "Aa1_")))
+           (create-var "Aa1_"))))
+
+  (testing "Creating a variable with name starting wit a small letter"
     (is (thrown? IllegalArgumentException
                  (create-var "variable"))))
 
-  (testing "#variable?"
-    (is (true? (variable? (create-var "X"))))
-    (is (false? (variable? 33))))
+  (testing "#var-term?"
+    (is (true? (var-term? (create-var "X"))))
+    (is (false? (var-term? 33))))
 
   (testing "#generate"
     (let [pool {"Variable" "RANDOM"}]
@@ -39,43 +46,47 @@
               second
               count)))))
 
-  (testing "#to-string"
+  (testing "#to-string of a Variable with no value"
     (is (= "Variable"
            (-> (create-var "Variable")
                (.to-string (env-create))))))
 
-  (testing "#unify"
-    (is (true?
-        (->> (env-create)
-             (.unify (create-var "X")
-                     (create-var "Y"))
-             first)))
-    (is (-> (.unify (create-var "X")
-                    (create-var "Y")
-                    (env-create))
-            second
-            (env-bound? "X" "Y")))
+  (testing "#to-string of a Variable with a value"
+    (let [env (-> (env-create)
+                  (env-set "Variable" (create-atom "atom")))]
+      (is (= "atom"
+             (-> (create-var "Variable")
+                 (.to-string env))))))
+
+  (testing "Unifying Variables with no values."
+    (let [result
+          (->> (env-create)
+               (.unify (create-var "X")
+                       (create-var "Y")))]
+      (-> result nil? not is)
+      (is (env-bound? result "X" "Y"))))
+
+  (testing "Unifying Variables, where one has a value"
     (let [env (-> (env-create)
                   (env-bind "X" "Y")
-                  (env-set "X" 42))]
-      (is (= 42 (env-get env "Y")))
-      (is (true?
-          (->> env
-               (.unify (create-var "Z") 
-                       (create-var "X"))
-               first)))
+                  (env-set "X" (create-atom "atom")))]
+      (-> (.unify
+            (create-var "Z")
+            (create-var "X")
+            env)
+          nil? not is)
 
-      (is (= 42
+      (is (= (create-atom "atom")
              (-> (.unify (create-var "Z")
                          (create-var "X")
                          env)
-                 second
                  (env-get "Z"))))
-      (is (true?
-          (->> (env-set env "X" (create-atom "atom"))
+
+      (is (->> (env-set env "X" (create-atom "diff"))
                (.unify (create-var "X")
                        (create-var "V"))
-               first))))))
+               nil?
+               not)))))
 
 
 (deftest test-atom
@@ -94,9 +105,9 @@
     (is (thrown? IllegalArgumentException
                  (create-atom "atom with N0 Quoting"))))
 
-  (testing "#atom?"
-    (is (false? (atom? (create-var "X"))))
-    (is (true? (atom? (create-atom "atom")))))
+  (testing "#atom-term?"
+    (is (false? (atom-term? (create-var "X"))))
+    (is (true? (atom-term? (create-atom "atom")))))
 
   (testing "#to-string"
     (is (= "'atom n@m3'"
@@ -106,54 +117,61 @@
            (.to-string (create-atom "aT_")
                        (env-create)))))
 
-  (testing "#unify"
-    (is (true? (->> (env-create)
-                    (.unify (create-atom "atom")
-                            (create-atom "atom"))
-                    first)))
-    (is (true? (->> (env-create)
-                    (.unify (create-atom "atom")
-                            (create-atom "'atom'"))
-                    first)))
-    (is (true? (->> (env-create)
-                    (.unify (create-atom "'atom'")
-                            (create-atom "atom"))
-                    first)))
-    (is (true? (->> (env-create)
-                    (.unify (create-atom "'atom'")
-                            (create-atom "'atom'"))
-                    first)))
-    (is (false? (->> (env-create)
-                     (.unify (create-atom "atom_")
-                             (create-atom "atom"))
-                     first)))
-    (is (false? (->> (env-create)
-                     (.unify (create-atom "'atom '")
-                             (create-atom "'atom'"))
-                     first)))
-    (is (true? (->> (env-create)
-                    (.unify (create-var "Variable")
-                            (create-atom "atom"))
-                    first)))
-    (is (= {"Variable" (create-atom "atom")}
-           (->> (env-create)
-                (.unify (create-var "Variable")
-                        (create-atom "atom"))
-                second
-                :values)))
-    (is (true? (->> (env-create)
-                    (.unify (create-atom "atom")
-                            (create-var "Variable"))
-                    first)))
-    (is (= {"Variable" (create-atom "atom")}
+  (testing "Unifying atoms"
+    (is (not (nil?
+               (.unify (create-atom "atom")
+                       (create-atom "atom")
+                       (env-create)))))
+    (is (not (nil?
+               (.unify (create-atom "atom")
+                       (create-atom "'atom'")
+                       (env-create)))))
+    (is (not (nil?
+               (.unify (create-atom "'atom'")
+                       (create-atom "atom")
+                       (env-create)))))
+    (is (not (nil?
+               (.unify (create-atom "'atom'")
+                       (create-atom "'atom'")
+                       (env-create)))))
+    (is (nil?
+         (.unify (create-atom "atom_")
+                 (create-atom "atom")
+                 (env-create))))
+    (is (nil?
+         (.unify (create-atom "'atom '")
+                 (create-atom "'atom'")
+                 (env-create)))))
+
+  (testing "Unifying Atom and Variable"
+    (is (= (create-atom "atom")
            (->> (env-create)
                 (.unify (create-atom "atom")
-                        (create-var "Variable"))
-                second
-                :values)))))
+                        (create-var "VAR"))
+                (get-var-value (create-var "VAR")))))
+    (is (= (create-atom "atom")
+           (->> (env-create)
+                (.unify (create-var "VAR")
+                        (create-atom "atom"))
+                (get-var-value (create-var "VAR")))))
+    (is (= (create-atom "'atom'")
+           (->> (env-create)
+                (set-var-value (create-var "VAR")
+                               (create-atom "'atom'"))
+                (.unify (create-atom "atom")
+                        (create-var "VAR"))
+                (get-var-value (create-var "VAR")))))
+    (is (= (create-atom "'atom'")
+           (->> (env-create)
+                (set-var-value (create-var "VAR")
+                               (create-atom "'atom'"))
+                (.unify (create-var "VAR")
+                        (create-atom "atom"))
+                (get-var-value (create-var "VAR")))))))
 
 
 (deftest test-tuple
+
   (testing "#create-tuple"
     (is (= (->Tuple [(create-atom "atom")
                      (create-var "VAR")])
@@ -161,9 +179,9 @@
     (is (= (->Tuple [])
            (create-tuple []))))
 
-  (testing "#tuple?"
-    (is (false? (tuple? (create-var "X"))))
-    (is (true? (tuple? (create-tuple ["atom" "X"])))))
+  (testing "#tuple-term?"
+    (is (false? (tuple-term? (create-var "X"))))
+    (is (true? (tuple-term? (create-tuple ["atom" "X"])))))
 
   (testing "#to-string"
     (is (= "(atom, Variable, (inner, (tuple)))"
@@ -172,10 +190,14 @@
                          (->Tuple [(create-atom "inner")
                                    (create-tuple ["tuple"])])])
                (.to-string (env-create)))))
-    (is (= "()" (.to-string (create-tuple [])
-                            (env-create))))
-    (is (= "(atom)" (.to-string (create-tuple ["atom"])
-                                (env-create)))))
+    (is (= "()"
+           (.to-string
+             (create-tuple [])
+             (env-create))))
+    (is (= "(atom)"
+           (.to-string
+             (create-tuple ["atom"])
+             (env-create)))))
 
   (testing "#generate"
     (let [pool {"Var1" "Result1", "Var2" "Result2"}]
@@ -188,44 +210,44 @@
                  (.generate pool)
                  first)))))
 
-  (testing "#unify"
-    (let [env (env-create)]
-      (is (true?
-           (-> (create-tuple ["atom" "VAR1" "VAR2"])
-               (.unify (create-tuple ["atom" "VAR1" "VAR2"])
-                       env)
-               first)))
-      (is (true?
-           (-> (create-tuple ["VAR1" "VAR2" "VAR3"])
-               (.unify (create-tuple ["atom" "VAR1" "VAR2"])
-                       env)
-               first)))
+  (testing "Unifying tuples when all elements match"
+    (is (= (env-create)
+           (.unify
+             (create-tuple ["atom" "VAR1" "VAR2"])
+             (create-tuple ["atom" "VAR1" "VAR2"])
+             (env-create)))))
+
+  (testing "Unifying tuples when variables have to bind"
+    (let [env (.unify
+                (create-tuple ["VAR1" "VAR2" "VAR3"])
+                (create-tuple ["atom" "VAR1" "VAR2"])
+                (env-create))]
+      (is (env-bound? env "VAR1" "VAR2"))
+      (is (env-bound? env "VAR1" "VAR3"))))
+
+  (testing "Unifying tuples when variables have to be evaluated"
+    (let [env (.unify
+                (create-tuple ["VAR1" "VAR2" "VAR3"])
+                (create-tuple ["atom" "VAR3" "VAR1"])
+                (env-create))]
       (is (= (create-atom "atom")
-             (-> (create-tuple ["VAR1" "VAR2" "VAR3"])
-                 (.unify (create-tuple ["atom" "VAR1" "VAR2"])
-                         env)
-                 second
-                 (env-get "VAR3"))))
-      (is (false?
-           (-> (create-tuple ["VAR1" "VAR1"])
-               (.unify (create-tuple ["atom" "another"])
-                       env)
-               first)))
-      (is (false?
-           (-> (create-tuple ["atom" "atom"])
-               (.unify (create-tuple ["atom"])
-                       env)
-               first)))
-      (is (true?
-           (-> (create-tuple ["VAR1" "VAR2"])
-               (.unify (create-tuple ["VAR2" "VAR1"])
-                       env)
-               first)))
-      (is (-> (create-tuple ["VAR1" "VAR2"])
-              (.unify (create-tuple ["VAR2" "VAR1"])
-                      env)
-              second
-              (env-bound? "VAR1" "VAR2"))))))
+             (env-get env "VAR1")))
+      (is (= (create-atom "atom")
+             (env-get env "VAR2")))
+      (is (= (create-atom "atom")
+             (env-get env "VAR3")))))
+  
+  (testing "Unifying tuples when terms don't unify"
+    (is (falsy? (.unify
+                   (create-tuple ["VAR1" "VAR1"])
+                   (create-tuple ["atom" "another"])
+                   (env-create)))))
+
+  (testing "Unifying tuples when number of elements don't match"
+    (is (falsy? (.unify
+                   (create-tuple ["atom" "atom"])
+                   (create-tuple ["atom"])
+                   (env-create))))))
 
 
 (deftest test-fact
@@ -234,9 +256,9 @@
                    (create-tuple ["p1" "P2"]))
            (create-fact "name" ["p1" "P2"]))))
 
-  (testing "#fact?"
+  (testing "#fact-term?"
     (is (-> (create-fact "name" ["p1" "P2"])
-            fact?)))
+            fact-term?)))
 
   (testing "#to-string of a fact with no parameters"
     (is (= "fact()"
@@ -271,11 +293,10 @@
                   (->Variable (pool "V2"))]))))))
 
   (testing "When two facts unify, then the variables are evaluated properly"
-    (let [[unified? env]
-          (.unify (create-fact "name" ["X" "Y" "atom"])
-                  (create-fact "name" ["atom" "X" "Y"])
-                  (env-create))]
-      (is unified?)
+    (let [env (.unify
+                (create-fact "name" ["X" "Y" "atom"])
+                (create-fact "name" ["atom" "X" "Y"])
+                (env-create))]
       (is (env-bound? env "X" "Y"))
       (is (= (create-atom "atom")
              (env-get env "X")))
@@ -283,25 +304,28 @@
              (env-get env "Y")))))
 
   (testing "When the names are different, then the facts don't unify"
-    (let [[unified? _]
-          (.unify (create-fact "fact1" ["X" "Y"])
-                  (create-fact "fact2" ["X" "Y"])
-                  (env-create))]
-      (is (not unified?))))
+    (is
+      (falsy?
+        (.unify
+          (create-fact "fact1" ["X" "Y"])
+          (create-fact "fact2" ["X" "Y"])
+          (env-create)))))
 
   (testing "When the parameters have different count, then the facts don't unify"
-    (let [[unified? _]
-          (.unify (create-fact "fact" ["X"])
-                  (create-fact "fact" ["X" "Y"])
-                  (env-create))]
-      (is (not unified?))))
+    (is
+      (falsy?
+        (.unify
+          (create-fact "fact" ["X"])
+          (create-fact "fact" ["X" "Y"])
+          (env-create)))))
 
   (testing "Unifying facts, when evaluation not possible."
-    (let [[unified? _]
-          (.unify (create-fact "fact" ["X" "Y" "X"])
-                  (create-fact "fact" ["atom1" "atom2" "Y"])
-                  (env-create))]
-      (is (not unified?)))))
+    (is
+      (falsy?
+        (.unify
+          (create-fact "fact" ["X" "Y" "X"])
+          (create-fact "fact" ["atom1" "atom2" "Y"])
+          (env-create))))))
 
 
 (deftest test-rule
@@ -354,40 +378,42 @@
         (create-rule "rule" ["X" "Y"] {:fact ["fact" ["Y" "X"]]})]
 
     (testing "Unifying a Rule and an Atom, when they cannot unify"
-      (let [[unified? _]
-            (.unify test-rule-with-args
-                    (create-atom "rule")
-                    (env-create))]
-        (is (not unified?))))
+      (is
+        (falsy?
+          (.unify
+            test-rule-with-args
+            (create-atom "rule")
+            (env-create)))))
 
     (testing "Unifying a Rule and an Atom, when they can unify"
-      (let [[unified? _]
-            (.unify test-rule-with-no-args
-                    (create-atom "rule")
-                    (env-create))]
-        (is unified?)))
+      (->
+        (.unify
+          test-rule-with-no-args
+          (create-atom "rule")
+          (env-create))
+        falsy? not is))
 
     (testing "Unifying a Rule and a Fact, when they cannot unify"
-      (let [[unified? _]
-            (.unify test-rule-with-args
-                    (create-fact "rule" ["X" "Y" "Z"])
-                    (env-create))]
-        (is (not unified?))))
+      (is
+        (falsy?
+          (.unify
+            test-rule-with-args
+            (create-fact "rule" ["X" "Y" "Z"])
+            (env-create)))))
 
     (testing "Unifying a Rule and a Fact, when they can unify"
-      (let [[unified? env]
-            (.unify test-rule-with-args
-                    (create-fact "rule" ["A" "atom"])
-                    (env-create))]
-        (is unified?)
+      (let [env (.unify
+                  test-rule-with-args
+                  (create-fact "rule" ["A" "atom"])
+                  (env-create))]
         (is (env-bound? env "A" "X"))
         (is (= (create-atom "atom")
                (env-get env "Y")))))))
 
 
-(deftest null-term-test
-  (testing "#create & #null?"
-    (is (null? (create-null))))
+(deftest test-null-term
+  (testing "#create & #null-term?"
+    (is (null-term? (create-null))))
 
   (testing "#to-string"
     (is (= "[]"
@@ -398,27 +424,19 @@
     (let [[new-term _]
           (.generate (create-null)
                      {})]
-      (is (null? new-term))))
+      (is (null-term? new-term))))
 
   (testing "Unifying a Null and a Variable"
-    (let [[unified? env]
-          (.unify (create-null)
-                  (create-var "X")
-                  (env-create))]
-      (is unified?)
-      (is (null? (env-get env "X")))))
-
-  (testing "Unifying two Nulls"
-    (let [[unified? env]
-          (.unify (create-null)
-                  (create-null)
-                  (env-create))]
-      (is unified?))))
+    (let [env (.unify
+                (create-null)
+                (create-var "X")
+                (env-create))]
+      (is (null-term? (env-get env "X"))))))
 
 
-(deftest list-term-test
+(deftest test-list-term
   (testing "Creating an empty List"
-    (is (null? (create-list '()))))
+    (is (null-term? (create-list '()))))
 
   (testing "Creating a List with no tail"
     (is (= (create-list ["a" "b" "c"])
@@ -510,50 +528,50 @@
                  (env-set "E" (create-list ["c" "D"])))))))
 
   (testing "Unifying empty lists"
-    (is (true?
-          (-> (.unify (create-list [])
-                      (create-list [])
-                      (env-create))
-              first))))
+    (->
+      (.unify
+        (create-list [])
+        (create-list [])
+        (env-create))
+      nil? not is))
 
   (testing "Unifying non-empty lists"
-    (let [[unified? env]
-          (.unify (create-list ["a" "B"])
-                  (create-list ["B" "A"])
-                  (env-create))]
-    (is unified?)
-    (is (= (create-atom "a")
-           (env-get env "B")))))
+    (let [env (.unify
+                (create-list ["a" "B"])
+                (create-list ["B" "A"])
+                (env-create))]
+      (is (= (create-atom "a")
+             (env-get env "B")))))
 
   (testing "Unifying lists where one has variable tail"
-    (let [[unified? env]
-          (.unify (create-list ["a" "b" :| "C"])
-                  (create-list ["a" "b" "c" "d"])
-                  (env-create))]
-    (is unified?)
+    (let [env (.unify
+                (create-list ["a" "b" :| "C"])
+                (create-list ["a" "b" "c" "d"])
+                (env-create))]
     (is (= (create-list ["c" "d"])
            (env-get env "C")))))
 
   (testing "Unifying lists where sizes are different"
-    (let [[unified? env]
-          (.unify (create-list ["a" "b"])
-                  (create-list ["a" "b" "c"])
-                  (env-create))]
-    (is (not unified?))))
+    (->
+      (.unify
+        (create-list ["a" "b"])
+        (create-list ["a" "b" "c"])
+        (env-create))
+      falsy? is))
 
   (testing "Unifying lists where a pair ot terms don't unify"
-    (let [[unified? env]
-          (.unify (create-list ["a" "c"])
-                  (create-list ["a" "b" "c"])
-                  (env-create))]
-    (is (not unified?))))
+    (->
+      (.unify
+        (create-list ["a" "c"])
+        (create-list ["a" "b" "c"])
+        (env-create))
+      falsy? is))
 
   (testing "Unifying a List and a Variable"
-    (let [[unified? env]
-          (.unify (create-var "X")
-                  (create-list ["a" "b"])
-                  (env-create))]
-    (is unified?)
+    (let [env (.unify
+                (create-var "X")
+                (create-list ["a" "b"])
+                (env-create))]
     (is (= (create-list ["a" "b"])
            (env-get env "X")))))
 
