@@ -24,7 +24,7 @@
   [env name value]
   {:names (:names env)
    :values (assoc (:values env)
-                  name 
+                  name
                   value)})
 
 

@@ -94,7 +94,7 @@
 
   @return
     The new environment if the two Terms unify.
-    False otherwise. 
+    False otherwise.
   "
   [term atom env]
   (and (-> term :tuple empty-tuple?)

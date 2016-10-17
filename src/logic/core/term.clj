@@ -9,7 +9,9 @@
   (unify [this other env]))
 
 
-(declare create-term fact-term?)
+(declare
+  create-term
+  fact-term?)
 
 
 (load "term/variable")
