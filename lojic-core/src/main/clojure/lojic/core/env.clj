@@ -1,4 +1,4 @@
-(ns logic.core.env)
+(ns lojic.core.env)
 
 
 (defn env-create

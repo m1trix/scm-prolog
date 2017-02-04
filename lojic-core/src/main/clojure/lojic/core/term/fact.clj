@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (declare unify-fact-and-term)
@@ -37,7 +37,7 @@
   "
   [term]
   (instance?
-    logic.core.term.Fact
+    lojic.core.term.Fact
     term))
 
 

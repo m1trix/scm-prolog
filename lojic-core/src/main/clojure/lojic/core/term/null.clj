@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (declare unify-null-and-term)
@@ -39,7 +39,7 @@
   "
   [term]
   (instance?
-    logic.core.term.Null
+    lojic.core.term.Null
     term))
 
 

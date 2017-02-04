@@ -1,5 +1,5 @@
-(ns logic.core.utils-test
-  (use logic.core.utils
+(ns lojic.core.utils-test
+  (use lojic.core.utils
        clojure.test))
 
 (deftest test-utils

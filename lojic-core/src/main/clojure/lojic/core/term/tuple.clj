@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (declare unify-tuple-and-term)
@@ -36,7 +36,7 @@
   "
   [term]
   (instance?
-    logic.core.term.Tuple
+    lojic.core.term.Tuple
     term))
 
 

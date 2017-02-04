@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (def var-name-pattern #"^(?:_)|(?:[A-Z]\w*)$")
@@ -70,7 +70,7 @@
   "
   [term]
   (instance?
-    logic.core.term.Variable
+    lojic.core.term.Variable
     term))
 
 

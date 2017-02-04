@@ -1,4 +1,4 @@
-(ns logic.core.utils)
+(ns lojic.core.utils)
 
 
 (defn illegal-argument

@@ -1,7 +1,7 @@
-(ns logic.core.term-test
-  (:use logic.core.env
-        logic.core.term
-        logic.core.utils
+(ns lojic.core.term-test
+  (:use lojic.core.env
+        lojic.core.term
+        lojic.core.utils
         clojure.test))
 
 

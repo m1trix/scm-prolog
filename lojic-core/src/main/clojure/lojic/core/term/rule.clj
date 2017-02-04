@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (declare unify-rule-and-term)
@@ -37,7 +37,7 @@
     False otherwise.
   "
   [term]
-  (instance? logic.core.term.Rule term))
+  (instance? lojic.core.term.Rule term))
 
 
 (defn- rule->string

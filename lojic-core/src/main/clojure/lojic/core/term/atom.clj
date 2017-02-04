@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (def atom-unquoted-name-pattern #"^[a-z]\w*$")
@@ -64,7 +64,7 @@
   "
   [term]
   (instance?
-    logic.core.term.Atom
+    lojic.core.term.Atom
     term))
 
 

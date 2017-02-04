@@ -1,4 +1,4 @@
-(in-ns 'logic.core.term)
+(in-ns 'lojic.core.term)
 
 
 (declare unify-list-and-term)
@@ -132,7 +132,7 @@
     False otherwise.
   "
   [term]
-  (or (instance? logic.core.term.List term)
+  (or (instance? lojic.core.term.List term)
       (null-term? term)))
 
 

@@ -1,6 +1,6 @@
-(ns logic.core.db-test
-  (use logic.core.db
-       logic.core.term
+(ns lojic.core.db-test
+  (use lojic.core.db
+       lojic.core.term
        clojure.test)
   (:refer-clojure :exclude [create-ns]))
 

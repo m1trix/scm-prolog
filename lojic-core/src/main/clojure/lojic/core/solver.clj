@@ -1,7 +1,7 @@
-(ns logic.core.solver
-  (:use logic.core.term
-        logic.core.env
-        logic.core.db)
+(ns lojic.core.solver
+  (:use lojic.core.term
+        lojic.core.env
+        lojic.core.db)
   (:refer-clojure
     :exclude [create-ns]))
 

@@ -1,5 +1,5 @@
-(ns logic.core.db
-  (:use logic.core.utils)
+(ns lojic.core.db
+  (:use lojic.core.utils)
   (:refer-clojure :exclude [create-ns]))
 
 

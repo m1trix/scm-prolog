@@ -1,6 +1,6 @@
-(ns logic.core.term
-  (use logic.core.env
-       logic.core.utils))
+(ns lojic.core.term
+  (use lojic.core.env
+       lojic.core.utils))
 
 
 (defprotocol ITerm
