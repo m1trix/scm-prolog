@@ -66,3 +66,56 @@
 
       (= :rule key)
       (apply create-rule (map key)))))
+
+
+(declare unify)
+
+
+(define unify-var-and-term [var term env]
+  (let [value (env-get var value)]
+    (cond
+      (not (nil? value))
+      (unify value term env)
+
+      (symbol? term)
+      (env-bind env var term)
+
+      :else
+      (env-set env var term))
+
+
+(define unify-lists [left right env]
+  (cond
+    (and (empty? left) (empty? right))
+    env
+
+    (= '& (first left))
+    (unify (second left) right env)
+
+    (= '& (first right))
+    (unify left (second right) env)
+
+    :else
+    (when-let [env (unify (first left) (first right) env])]
+      (recur (next left) (next right) env))))
+
+
+(define unify [first second env]
+  (cond
+    (symbol? first)
+    (unify-var-and-term first second env)
+
+    (symbol? second)
+    (unify-var-and-term second first env)
+
+    (and (keyword? first) (keyword? second))
+    env
+
+    (and (number? first) (number? second))
+    env
+
+    (and (string? first) (string? second))
+    env
+
+    (and (sequential? first) (sequential? second))
+    (unify-lists first second env)))

@@ -1,0 +1,357 @@
+(name :x)
+(str :x)
+exit
+(str "abc")
+(string "abc")
+(str "abc")
+(str \" "abc" \")
+(number? 1)
+(number? 1/1)
+(number? 1.123123)
+(number? -1.123123)
+(number? [])
+(number? nil)
+(str 1)
+(str 1/1)
+(str 1/2)
+(str 1.1)
+(boolean? true)
+(bool? true)
+(= true)
+(= true 1)
+(boolean? 1)
+(boolean? true)
+exit
+[:a :B]
+[:a :B | :C]
+[:a :B -> :C]
+[:a :B & :C]
+[:a :B _ :C]
+[:a :B -> :C]
+[:a :B :& :C]
+[:a :B :&: :C]
+[:a :B :_& :C]
+[:a :B :& :C]
+(& 1 1)
+(defn & [& all] all)
+(& :a :b :c)
+exit
+(seq? [])
+(col? [])
+(coll? [])
+(coll? ())
+(coll? '())
+(coll? {})
+(coll? {:a :A})
+(second [])
+(second [1])
+(second [1 2])
+(second [1 2 3])
+(third [1 2 3])
+(coll? ())
+(coll? '())
+(coll? (1 2 3))
+`~(coll? (1 2 3))
+`(coll? (1 2 3))
+~`(coll? (1 2 3))
+`(~coll? (1 2 3))
+exit
+(coll? '())
+(coll? '('a 'b))
+(= ['a 'b] '('a 'b))
+(= [1 2] '(1 2))
+(= ['1 2] '('1 2))
+(= ['1 2] '(1 2))
+(= ['1 2] (1 2))
+(= ['1 2] '(1 2))
+(= [1 2] '(1 2))
+(= ['a 2] '(a 2))
+(= ['a 2] '(a b))
+(= ['a 'b] '(a b))
+(= ['a b] '(a b))
+(cons 1 2)
+(cons 1 '(2))
+(extend clojure.lang.Symbol ISeq
+  ; From ISeq
+  (first [this] head)
+  (next [this] (or tail this))
+  (more [this] (or tail this))
+  (cons [this element] (VarList. element this (-> :size this inc))
+  ; From IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (VarList. nil nil 0))
+  (equiv [this other] (= this other))
+  
+  ; From Seqable
+  (seq [this] this))
+)
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  ; From ISeq
+  (first [this] head)
+  (next [this] (or tail this))
+  (more [this] (or tail this))
+  (cons [this element] (VarList. element this (-> :size this inc)))
+  ; From IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (VarList. nil nil 0))
+  (equiv [this other] (= this other))
+  
+  ; From Seqable
+  (seq [this] this))
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2))
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))6
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))6
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(PersistenList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(PersistenList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(PersistentList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(PersistentList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(clojure.lang.PersistentList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(clojure.lang.PersistentList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(declare VarList)
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(deftype VarList [head tail size])
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(deftype VarList [head tail size])
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(VarList. %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(VarList. nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(deftype VarList [head tail size])
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(->VarList %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(->VarList nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(extend clojure.lang.Symbol clojure.lang.ISeq
+  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(->VarList %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(->VarList nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(deftype VarList [head tail size])
+(defprotocol IVarList clojure.lang.ISeq)
+(extend clojure.lang.Symbol IVarList  {:first #(:head %)
+   :next #(or (:tail %) %)
+   :more #(or (:tail %) %)
+   :cons #(->VarList %2 %1 (-> :size %1 inc))
+   :count #(:size %)
+   :empty #(->VarList nil nil 0)
+   :equiv #(= %1 %2)
+   :seq #(%)})
+(defprotocol IVarList [] clojure.lang.ISeq)
+(defprotocol IVarList clojure.lang.ISeq)
+(deftype VarList [head tile size]
+  clojure.lang.ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (VarList. element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (VarList. nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(deftype VarList [head tile size]
+  ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (VarList. element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (VarList. nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(deftype VarList [head tile size]
+  ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (VarList. element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (VarList. nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(deftype VarList [head tile size]
+  clojure.lang.ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (VarList. element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (VarList. nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(deftype VarList [head tile size]
+  clojure.lang.ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (->VarList element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (->VarList nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(declare VarList)
+(deftype VarList [head tile size]
+  clojure.lang.ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (->VarList element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (->VarList nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(defrecord VarList [head tile size]
+  clojure.lang.ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (->VarList element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (->VarList nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(defrecord VarList [head tile size]
+  clojure.lang.ISeq
+  ; ISeq
+  (first [this] (:head this))
+  (next [this] (or (:tail this) this))
+  (more [this] (or (:tail this) this))
+  (cons [this element] (->VarList element this (-> this :size inc)))
+  
+  ; IPersistentCollection
+  (count [this] (:size this))
+  (empty [this] (->VarList nil nil 0))
+  (equiv [this other] (= this other))
+  ; Seqable
+  (seq [this] this))
+(seqable? [])
+(seq? [])
+(coll? [])
+exit
+(seq? {})
+(seq? [])
+(sequence? [])
+(sequential? [])
+(sequential? #{})
+(sequential? '())
+(sequential? (seq))
+(sequential? (seq 1))
+(sequential? (seq []))
+(sequential? {})
+(sequential? "")
+(sequential? 33)
+exit
+(head [1 2 3])
+(first [1 2 3])
+exit

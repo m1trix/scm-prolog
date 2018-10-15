@@ -59,12 +59,9 @@
                  (.to-string env))))))
 
   (testing "Unifying Variables with no values."
-    (let [result
-          (->> (env-create)
-               (.unify (create-var "X")
-                       (create-var "Y")))]
+    (let [result (unify 'X 'Y (create-env))]
       (-> result nil? not is)
-      (is (env-bound? result "X" "Y"))))
+      (is (env-bound? result 'X 'Y))))
 
   (testing "Unifying Variables, where one has a value"
     (let [env (-> (env-create)
